@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var capturePath = ""
     @State private var cookieDraft = ""
     @State private var revealingCookie = false
+    @State private var importPastedResult: String?
 
     var body: some View {
         NavigationStack {
@@ -36,7 +37,7 @@ struct SettingsView: View {
                 }
             }
             .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.json, .plainText, .data],
+                          allowedContentTypes: [.item],
                           allowsMultipleSelection: false) { result in
                 switch result {
                 case .success(let urls):
@@ -119,29 +120,33 @@ struct SettingsView: View {
             }
             .disabled(capturePath.trimmingCharacters(in: .whitespaces).isEmpty)
         } header: {
-            Text("导入抓包")
+            Text("从文件导入")
         } footer: {
-            Text("AirDrop 过来的文件存到「文件」App 的「我的 iPhone → 每日商店」，再点「扫描 App 文件夹」，一次把两个文件都读进来。\n支持 mval_session.json（推荐，含 ct）、mval_capture.log、mitmproxy 的 mval-*.jsonl。")
+            Text("路径：「文件」App → 浏览 → **我的 iPhone** → 「每日商店」→ 把 mval_session.json 放进去 → 回来点「扫描 App 文件夹」。\n\n"
+                 + "看不到这个文件夹的话，依次试：\n"
+                 + "1. 确认装的是新版本（老版本没有开文件共享）\n"
+                 + "2. 把 App 完全退出再启动一次（iOS 要等 App 跑过一次才登记）\n"
+                 + "3. 后台杀掉「文件」App 再打开\n"
+                 + "4. 还是没有 → 用上面的「粘贴登录态」，那条路不依赖「文件」App")
         }
     }
 
-    // MARK: 直接粘贴 Cookie
+    // MARK: 直接粘贴
     //
-    // 不想抓包传文件时的快速通道：从任何地方（浏览器 devtools / mitmproxy 的
-    // headers / 已有的抓包记录）复制整行 Cookie 贴进来就行。
-    //
-    // 代价：Cookie 里没有 ct，所以**不能自刷新**，tid 过期就得重新贴。
+    // 不想/不方便传文件时的通道。整个框智能识别：
+    //   · mval_session.json 的整段 JSON  → 含 ct，能自刷新（推荐）
+    //   · 纯 Cookie 头                    → 能用，但 tid 过期就得重贴
 
     private var cookieSection: some View {
         Section {
             TextEditor(text: $cookieDraft)
                 .font(.caption.monospaced())
-                .frame(minHeight: 88)
+                .frame(minHeight: 110)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .overlay(alignment: .topLeading) {
                     if cookieDraft.isEmpty {
-                        Text("clientType=9; acctype=qc; uin=o10001; appid=102061775; openid=…; access_token=…; userId=u-…; accountType=5; tid=…")
+                        Text("粘贴 mval_session.json 的整段内容（以 { 开头，含 ct，能自刷新）\n或直接粘 Cookie 头（clientType=9; acctype=qc; …; tid=…）")
                             .font(.caption2.monospaced())
                             .foregroundStyle(.tertiary)
                             .padding(.top, 8)
@@ -151,16 +156,25 @@ struct SettingsView: View {
                 }
 
             Button {
-                model.saveCookie(cookieDraft)
-                cookieDraft = ""
+                importPastedResult = model.importPasted(cookieDraft)
+                if importPastedResult?.hasPrefix("导入成功") == true {
+                    cookieDraft = ""
+                }
             } label: {
-                Label("保存这份 Cookie", systemImage: "checkmark.circle")
+                Label("识别并导入", systemImage: "wand.and.stars")
             }
             .disabled(cookieDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if let r = importPastedResult {
+                Text(r)
+                    .font(.caption)
+                    .foregroundStyle(r.hasPrefix("导入成功") ? .green : .orange)
+            }
         } header: {
-            Text("直接粘贴 Cookie（快速通道）")
+            Text("粘贴登录态（最省事，不用传文件）")
         } footer: {
-            Text("不用传文件的方式。但 Cookie 里没有 ct —— 贴上就能读，tid 一过期就得重贴。想一劳永逸还是走上面的抓包导入。")
+            Text("在电脑上打开 mval_session.json，全选复制，微信/备忘录发到手机再粘过来即可。\n"
+                 + "这条路的优点是没有任何前置条件 —— 文件导入要走「文件」App，会受 App 是否启动过、缓存等因素影响。")
         }
     }
 

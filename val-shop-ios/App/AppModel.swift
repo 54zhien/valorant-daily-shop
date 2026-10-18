@@ -112,6 +112,52 @@ final class AppModel {
         push("已保存 Cookie：userId=\(s.userID.isEmpty ? "?" : s.userID)，账号=\(s.authType.displayName)")
     }
 
+    /// 智能粘贴：一段文本既可能是 Cookie 头，也可能是 mval_session.json 的内容。
+    /// 自动认，认不出来的话给出明确提示（而不是默默失败）。
+    ///
+    /// 为什么要这个：iOS 上把文件弄进 App 有前置条件（App 至少启动过一次、
+    /// 「文件」App 缓存……），任一环不对就传不进去。粘贴没有任何依赖。
+    @discardableResult
+    func importPasted(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "粘贴框是空的" }
+
+        // ① JSON（mval_session.json，含 ct，可自刷新）
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+            if let data = trimmed.data(using: .utf8),
+               let s = try? ZhangwaSession.from(sessionJSON: data) {
+                client.updateSession(s)
+                applySession(s)
+                let msg = "导入成功（JSON）：userId=\(s.userID)，ct=\(s.ct.isEmpty ? "无" : "有")"
+                push(msg)
+                return msg
+            }
+            let msg = "看着像 JSON 但解析不出 user_id / tid，检查一下是不是贴串了"
+            push(msg)
+            return msg
+        }
+
+        // ② Cookie 头
+        if trimmed.contains("=") && (trimmed.contains("tid=") || trimmed.contains("clientType=")
+                                     || trimmed.contains("openid=")) {
+            let s = ZhangwaSession.from(cookieHeader: trimmed)
+            guard s.isValid else {
+                let msg = "认得出是 Cookie，但缺关键字段（至少要 userId + tid）"
+                push(msg)
+                return msg
+            }
+            client.updateSession(s)
+            applySession(s)
+            let msg = "导入成功（Cookie）：userId=\(s.userID)，ct=\(s.ct.isEmpty ? "无（不能自刷新）" : "有")"
+            push(msg)
+            return msg
+        }
+
+        let msg = "认不出这是什么。要么贴完整 Cookie（含 tid=），要么贴 session 的整段 JSON（以 { 开头）"
+        push(msg)
+        return msg
+    }
+
     func importCapture(path: String) async {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
