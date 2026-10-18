@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import UniformTypeIdentifiers
 import ZhangwaKit
 
@@ -9,7 +9,6 @@ struct SettingsView: View {
 
     var isSheet: Bool = false
 
-    @State private var showImporter = false
     @State private var capturePath = ""
     @State private var cookieDraft = ""
     @State private var revealingCookie = false
@@ -36,18 +35,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.item],
-                          allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        Task { await model.importCapture(url: url) }
-                    }
-                case .failure(let error):
-                    model.push("选择文件失败：\(error.localizedDescription)")
-                }
-            }
+
         }
     }
 
@@ -102,8 +90,12 @@ struct SettingsView: View {
                 Label("扫描 App 文件夹", systemImage: "folder.badge.gearshape")
             }
 
+            // 直接从最上层 VC present，不走 SwiftUI 的 sheet ——
+            // 设置页本身已经是 sheet 了，再套一层很容易失效
             Button {
-                showImporter = true
+                DocumentPicker.present { url in
+                    Task { await model.importCapture(url: url) }
+                }
             } label: {
                 Label("从「文件」里选", systemImage: "folder")
             }
