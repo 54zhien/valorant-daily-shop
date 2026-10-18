@@ -134,9 +134,18 @@ struct SettingsView: View {
         Section {
             // ★ 给普通人的入口：打开 → 出二维码 → 微信扫一下 → 完事
             Button {
-                model.showQRLogin = true
+                model.loginSheet = .wechat
             } label: {
                 Label("扫码登录（推荐）", systemImage: "qrcode")
+                    .font(.body.weight(.semibold))
+            }
+            .buttonStyle(.glassProminent)
+            .tint(.zwAccent)
+
+            Button {
+                model.loginSheet = .qq
+            } label: {
+                Label("QQ 扫码登录", systemImage: "qrcode")
                     .font(.body.weight(.semibold))
             }
             .buttonStyle(.glassProminent)

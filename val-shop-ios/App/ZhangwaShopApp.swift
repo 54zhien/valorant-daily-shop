@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 @main
 struct ZhangwaShopApp: App {
@@ -46,9 +46,11 @@ struct RootView: View {
         // ★ 扫码登录挂在这儿（**根视图**），不是挂在设置页里。
         //   设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet —— iOS 上不稳，
         //   之前 .fileImporter 就是栽在这上面。挂根上永远只有一层。
-        .sheet(isPresented: $model.showQRLogin) {
-            QRLoginView()
-                .environment(model)
+        .sheet(item: $model.loginSheet) { which in
+            switch which {
+            case .wechat: QRLoginView().environment(model)
+            case .qq:     QQLoginView().environment(model)
+            }
         }
         // ★ 每次回到前台都续一次 ct。
         //

@@ -98,7 +98,17 @@ final class AppModel {
     /// 扫码登录界面开不开。放在 model 上而不是 SettingsView 的 @State —— 
     /// 设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet（iOS 上不稳）。
     /// 挂到根视图就永远只有一层。
-    var showQRLogin = false
+    /// 登录方式。用一个 enum 驱动**唯一一个** sheet。
+    ///
+    /// 为什么不用两个 .sheet(isPresented:) 挂在同一个视图上 ——
+    /// 同一个视图挂多个 sheet 在 iOS 上不稳（可能只弹第一个/都不弹）。
+    /// 这是踩过的坑，别改回去。
+    enum LoginSheet: String, Identifiable, Sendable {
+        case wechat, qq
+        var id: String { rawValue }
+    }
+
+    var loginSheet: LoginSheet?
 
     func adopt(_ s: ZhangwaSession) {
         client.updateSession(s)
