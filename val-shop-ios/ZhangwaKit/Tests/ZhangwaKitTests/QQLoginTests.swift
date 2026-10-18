@@ -177,6 +177,46 @@ struct QQLoginTests {
         #expect(!ua.contains("QQ/"))
     }
 
+    // MARK: 重载闸门（二维码狂闪那个 bug 的回归）
+
+    @Test("同一个 token 只加载一次 —— 重渲染不能触发重载")
+    func reloadGateOnlyOncePerToken() {
+        var gate = ReloadGate()
+        let a = UUID()
+
+        // 注意：#expect 会把表达式包进闭包，mutating 调用不能直接写在里面，
+        // 所以先取出来再断言。
+        let first = gate.shouldReload(token: a)
+        #expect(first)                            // 第一次要加载
+
+        // ★ 关键：反复问同一个 token，只能第一次为真。
+        //   原版每次都为真 -> 每次重渲染都加载 -> 二维码狂闪。
+        var anyTrue = false
+        for _ in 0..<20 where gate.shouldReload(token: a) {
+            anyTrue = true
+        }
+        #expect(!anyTrue, "同一个 token 不该再次加载")
+        #expect(gate.current == a)
+    }
+
+    @Test("换 token 才重载（点刷新 / 自动换码）")
+    func reloadGateNewTokenReloads() {
+        var gate = ReloadGate()
+        let a = UUID(), b = UUID(), c = UUID()
+
+        let r1 = gate.shouldReload(token: a)
+        let r2 = gate.shouldReload(token: b)
+        let r3 = gate.shouldReload(token: b)      // 重复问 b
+        let r4 = gate.shouldReload(token: c)
+        let r5 = gate.shouldReload(token: a)      // 换回 a —— 相对 b/c 也是"新"的
+
+        #expect(r1)
+        #expect(r2)
+        #expect(!r3)
+        #expect(r4)
+        #expect(r5)
+    }
+
     // MARK: 换登录态
 
     @Test("登录：请求体形状要和 Android 一致（sig = access_token）")

@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import WebKit
 import ZhangwaKit
 
@@ -282,14 +282,20 @@ struct QQWebView: UIViewRepresentable {
         web.customUserAgent = QQLogin.androidUA
 
         context.coordinator.web = web
-        context.coordinator.load(url)
+        context.coordinator.load(url, token: reloadToken)
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
-        // reloadToken 变了 = 用户点了刷新
-        if context.coordinator.lastToken != reloadToken {
-            context.coordinator.load(url)
+        // reloadToken 变了 = 用户点了刷新，或者自动换码到点了。
+        //
+        // ⚠️ 这里必须用 ReloadGate，不能自己比 —— 之前写成
+        //     if coordinator.lastToken != reloadToken { load() }
+        //   而 load() 里把 lastToken 设成了 nil，于是条件**永远为真**：
+        //   每次重渲染都重载页面，导航回调又写诊断、诊断又触发重渲染……
+        //   死循环，表现就是二维码疯狂闪烁扫不了。
+        if context.coordinator.gate.shouldReload(token: reloadToken) {
+            context.coordinator.load(url, token: reloadToken)
         }
     }
 
@@ -301,7 +307,7 @@ struct QQWebView: UIViewRepresentable {
         let onProbe: ((String) -> Void)?
 
         weak var web: WKWebView?
-        var lastToken: UUID?
+        var gate = ReloadGate()
 
         init(onCallback: @escaping (URL) -> Void,
              onLoaded: @escaping () -> Void,
@@ -315,8 +321,10 @@ struct QQWebView: UIViewRepresentable {
             self.onProbe = onProbe
         }
 
-        func load(_ url: URL) {
-            lastToken = nil
+        func load(_ url: URL, token: UUID) {
+            // 记下当前 token。不记的话下次 updateUIView 会再加载一次，
+            // 然后导航回调写诊断、诊断触发重渲染、又加载 —— 死循环，二维码狂闪。
+            _ = gate.shouldReload(token: token)
             // customUserAgent 已经设过了，这里不用再改 header。
             // 两处都设反而容易不一致，留一处就好。
             web?.load(URLRequest(url: url))

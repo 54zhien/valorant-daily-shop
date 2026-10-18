@@ -423,6 +423,38 @@ public final class QQLogin {
     }
 }
 
+// MARK: - 重载闸门
+
+/// 决定「这次视图更新要不要重新加载页面」。
+///
+/// 单独抽出来 + 放在 Kit 里是为了**能上测试** —— 这里踩过一个代价很大的坑：
+///
+/// 原先是 WebView 的 `updateUIView` 自己比 `lastToken != reloadToken`，
+/// 而 `load()` 里把 `lastToken` 设成了 `nil`。于是：
+///
+///     第一次加载后 lastToken = nil
+///     下次任何重渲染：nil != <UUID> → 真 → 再加载
+///     加载触发导航回调 → 回调写诊断 → 诊断触发重渲染 → 又加载
+///
+/// **无限循环**。表现是二维码疯狂闪烁、根本扫不了。
+///
+/// 正确做法：加载后把**当前** token 记下来，下次同一个 token 就不再加载。
+public struct ReloadGate: Sendable {
+    private var loadedToken: UUID?
+
+    public init() {}
+
+    /// 返回 true 表示需要加载，并把这次 token 记下来。
+    public mutating func shouldReload(token: UUID) -> Bool {
+        guard loadedToken != token else { return false }
+        loadedToken = token
+        return true
+    }
+
+    /// 已记录的 token（给测试看）
+    public var current: UUID? { loadedToken }
+}
+
 // MARK: - MD5
 
 /// 就为算 QQ 的 sign。QQ 那边用的是 MD5（60 位以内的短输入，够用）。
