@@ -292,6 +292,40 @@ struct ZhangwaKitTests {
         #expect(SsoAuthType(rawValue: 255) == .tourist)
     }
 
+    @Test("商店候选：第一名必须是从 APK 里读出来的 zone=shop，不是猜的")
+    func shopCandidateIsFromAPK() {
+        let c = ZhangwaClient(session: qqSession())
+        // ZoneMallHomeFragment → @RouteInfo("valpage://mobile_store_main")
+        //   → getDefaultTabSrcUrl() = "/go/zone/v3/channel?zone=shop&disableAlgo=$DISABLEALGO$"
+        #expect(c.shopCandidates.first == "/go/zone/v3/channel?zone=shop&disableAlgo=0")
+        #expect(c.probeHosts.contains("app.val.qq.com"))
+        #expect(c.probeHosts.contains("app.mval.qq.com"))
+    }
+
+    @Test("探测会两台域名都试，命中就停")
+    func probeTriesBothHosts() async {
+        let c = ZhangwaClient(session: qqSession())
+        c.shopCandidates = ["/go/zone/v3/channel?zone=shop&disableAlgo=0"]
+        var hits: [String] = []
+
+        c.transportOverride = { [self] req in
+            let h = req.url?.host ?? "?"
+            hits.append(h)
+            // 第一台(app.mval) 404，第二台(app.val) 成功
+            if h == ZhangwaClient.hostProd {
+                return json(#"{"result":404,"msg":"not found","data":null}"#)
+            }
+            return json(#"{"result":0,"msg":"ok","data":{"channel":[1,2,3]}}"#)
+        }
+
+        let results = await c.probeShop()
+        #expect(results.count == 1)
+        #expect(results[0].ok)
+        #expect(results[0].detail.contains("app.val.qq.com"))
+        #expect(hits.contains(ZhangwaClient.hostProd))
+        #expect(hits.contains(ZhangwaClient.hostVal))
+    }
+
     // MARK: - 抓包导入
 
     @Test("从 ndjson 抓包日志里提取会话与接口清单")

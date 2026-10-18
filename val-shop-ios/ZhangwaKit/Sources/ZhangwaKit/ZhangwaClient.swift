@@ -1,4 +1,4 @@
-﻿import Foundation
+import Foundation
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -25,6 +25,11 @@ public final class ZhangwaClient {
     public static let hostOld = "mlol.qt.qq.com"
     public static let hostOldPre = "mlolpre.qt.qq.com"
 
+    /// `com/tencent/qt/module_information/data/c.java:47` 里的另一台正式域名：
+    /// `https://app.val.qq.com/go/zone/v3/channel?zone=$ZONE$&disableAlgo=$DISABLEALGO$`
+    /// 页面容器（zone channel）走这台，探测时要一起试。
+    public static let hostVal = "app.val.qq.com"
+
     public static let zoneVAL = "val"       // 无畏契约端游
     public static let zoneCODEV = "codev"   // 无畏契约手游 / 共创
 
@@ -47,8 +52,17 @@ public final class ZhangwaClient {
     public var shopBody: [String: Any]?
     public var shopMethod: String = "auto"
 
-    /// 抓不到路径时可以先跑一遍探测
+    /// 抓不到路径时可以先跑一遍探测。
+    ///
+    /// 第一名是从反编译代码里直接读出来的，不是猜的：
+    ///   `com/tencent/zone/main/ZoneMallHomeFragment.java:82`
+    ///   → `@RouteInfo("valpage://mobile_store_main")`（掌瓦的商城页）
+    ///   → `getDefaultTabSrcUrl()` 返回 `/go/zone/v3/channel?zone=shop&disableAlgo=$DISABLEALGO$`
+    /// `$DISABLEALGO$` 在 `module_information/data/d.java` 里替换成 "0"/"1"，默认给 0。
     public var shopCandidates: [String] = [
+        "/go/zone/v3/channel?zone=shop&disableAlgo=0",
+        "/go/zone/v3/channel?zone=mall&disableAlgo=0",
+        "/go/zone/v3/channel?zone=val_shop&disableAlgo=0",
         "/go/agame/store/storefront",
         "/go/agame/store/daily",
         "/go/agame/shop/storefront",
@@ -60,6 +74,9 @@ public final class ZhangwaClient {
         "/go/val_store/storefront",
         "/go/val_shop/storefront",
     ]
+
+    /// 探测时依次尝试的域名
+    public var probeHosts: [String] = [ZhangwaClient.hostProd, ZhangwaClient.hostVal]
 
     public var onSessionChanged: (@MainActor (ZhangwaSession) -> Void)?
 
@@ -391,23 +408,30 @@ public final class ZhangwaClient {
         return try await request(path, body: shopBody ?? [:], method: shopMethod)
     }
 
-    /// POST/GET 都试一遍，返回每个候选路径的结果
+    /// 每个候选路径 × 每台域名，POST/GET 都试一遍
     public func probeShop() async -> [(path: String, ok: Bool, detail: String)] {
         var out: [(String, Bool, String)] = []
-        for path in shopCandidates {
+        let savedHost = host
+        defer { host = savedHost }
+
+        for candidate in shopCandidates {
             var hit = false
             var detail = ""
-            for m in ["POST", "GET"] {
-                do {
-                    let data = try await request(path, body: [:], method: m)
-                    hit = true
-                    detail = "OK [\(m)] \(Self.preview(data))"
-                    break
-                } catch {
-                    detail = "\(error.localizedDescription)"
+            for h in probeHosts {
+                host = h
+                for m in ["POST", "GET"] {
+                    do {
+                        let data = try await request(candidate, body: [:], method: m)
+                        hit = true
+                        detail = "OK [\(m)] @\(h) \(Self.preview(data))"
+                        break
+                    } catch {
+                        detail = "[\(h)] \(error.localizedDescription)"
+                    }
                 }
+                if hit { break }
             }
-            out.append((path, hit, detail))
+            out.append((candidate, hit, detail))
         }
         return out
     }
