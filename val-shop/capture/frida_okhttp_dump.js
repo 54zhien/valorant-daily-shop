@@ -29,7 +29,23 @@ const LOG_BODY = true;
 // 响应体最大字符数
 const MAX_BODY = 20000;
 
-const OUT = '/data/local/tmp/mval_capture.log';
+// ---------------------------------------------------------------------------
+// 输出路径
+//
+// ⚠️ 脚本是跑在**目标 app 进程**里的（uid 是 u0_a47 这种），不是 root。
+//    `/data/local/tmp` 的权限是 drwxrwx--x shell shell —— 普通 app 只有执行位，
+//    没有写权限，直接写会拿到 EACCES。
+//    所以第一顺位是 app 自己的 files 目录（owner 就是它自己，一定能写），
+//    pull 的时候用 root 读出来即可。
+// ---------------------------------------------------------------------------
+const OUT_CANDIDATES = [
+    '/data/data/com.tencent.apps.valorant/files/mval_capture.log',
+    '/data/user/0/com.tencent.apps.valorant/files/mval_capture.log',
+    '/sdcard/Android/data/com.tencent.apps.valorant/files/mval_capture.log',
+    '/data/local/tmp/mval_capture.log',
+];
+
+let OUT = OUT_CANDIDATES[0];
 
 function now() {
     return new Date().toISOString();
@@ -81,12 +97,21 @@ function bodyToString(body) {
 }
 
 let file = null;
-try {
-    file = new File(OUT, 'a');
-    file.write('=== session start ' + now() + ' ===\n');
-    file.flush();
-} catch (e) {
-    console.log('[!] cannot open ' + OUT + ' : ' + e);
+for (const candidate of OUT_CANDIDATES) {
+    try {
+        file = new File(candidate, 'a');
+        file.write('=== session start ' + now() + ' ===\n');
+        file.flush();
+        OUT = candidate;
+        console.log('[+] 抓到的东西写到 ' + OUT);
+        break;
+    } catch (e) {
+        console.log('[!] 写不了 ' + candidate + ' : ' + e);
+        file = null;
+    }
+}
+if (!file) {
+    console.log('[!] 一个都写不了，只往 stdout 打。检查 app 的 files 目录权限。');
 }
 
 function emit(obj) {
@@ -170,14 +195,27 @@ function hookResponses() {
 
             let text = null;
             if (LOG_BODY) {
-                // peekBody 拷贝一份，避免消费真实流
+                // App 用的是 okhttp/4.9.2（Kotlin）。
+                // 3.x 的 `BufferSource.buffer()` 在 4.x 变成了属性 `getBuffer()`，
+                // 所以不要再走 buffer()/clone()/readUtf8() 那套。
+                // peekBody() 返回的是内存副本，直接 .string() 读它不会消费真实流。
                 try {
-                    const peeked = resp.peekBody(1024 * 1024);
-                    const src = peeked.source();
-                    src.request(1024 * 1024);
-                    text = src.buffer().clone().readUtf8();
-                    if (text && text.length > MAX_BODY) {
-                        text = text.substring(0, MAX_BODY) + '...<truncated>';
+                    const body = resp.body();
+                    const ct = safe(() => body.contentType() ? body.contentType().toString() : '', '');
+                    const len = safe(() => body.contentLength(), -1);
+
+                    if (len === 0) {
+                        text = '';
+                    } else if (ct && !/json|text|xml|urlencoded|javascript|plain/i.test(ct)) {
+                        text = '<' + ct + (len > 0 ? ', ' + len + 'B' : '') + '>';
+                    } else if (len > 2 * 1024 * 1024) {
+                        text = '<too large: ' + len + ' bytes>';
+                    } else {
+                        const peeked = resp.peekBody(1024 * 1024);
+                        text = peeked.string();
+                        if (text && text.length > MAX_BODY) {
+                            text = text.substring(0, MAX_BODY) + '...<truncated>';
+                        }
                     }
                 } catch (e) {
                     text = '<peek failed: ' + e + '>';
@@ -228,7 +266,8 @@ function hookCookieHelper() {
 function hookAppContext() {
     try {
         const Ctx = Java.use('com.tencent.container.app.AppContext');
-        const SESSION = '/data/local/tmp/mval_session.json';
+        // 和日志同目录：app 自己的 files 目录（app uid 有写权限）
+        const SESSION = OUT.replace(/mval_capture\.log$/, 'mval_session.json');
 
         // AppContext.a(user_id, ct, authType, openid, uin, access_token, tid)
         // —— 这就是完整登录态，抓到它 iOS 端就能自刷新（见 README · iOS 路线）
