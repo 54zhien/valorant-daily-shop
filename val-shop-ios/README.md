@@ -52,6 +52,19 @@ Actions 自动跑两个 job：
 
 构建完成后到 **Actions → 对应 run → Artifacts** 下载 `ZhangwaShop-unsigned-ipa`。
 
+### 从手机上下载（推荐）
+
+每次 push 到 `main`，CI 会把 IPA 挂到一个滚动 Release 上，给你一条**能直接点的直链**：
+
+```
+https://github.com/54zhien/valorant-daily-shop/releases/download/latest/ZhangwaShop-unsigned.ipa
+```
+
+Safari 里点开 → 分享 → 丢给 ESign / 全能签。不用登录 GitHub、不用去 Actions 翻 Artifacts
+（那边下下来是个 zip，iOS 还得先解压，很烦）。
+
+也可以去 [Releases 页面](https://github.com/54zhien/valorant-daily-shop/releases/tag/latest) 手点下载。
+
 ### 关键：这个 IPA 是「脏」的
 
 工作流专门做了三件事，都是自签工具能正常吃下去的前提：
@@ -207,13 +220,30 @@ cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
 
 | 部分 | 状态 |
 |---|---|
-| `ZhangwaKit` 协议层 | ✅ 本机 Swift 6.2.3 真实编译 + 17 个测试全过，零警告 |
-| `App/` SwiftUI 层 | ⚠️ 本机是 Windows，没有 SwiftUI —— 只做到 **语法解析通过**，没做类型检查 |
-| 工作流 YAML / plist / 图标 | ✅ 用 `selfcheck.py` 程序化校验过（含关键步骤断言） |
-| 真实构建 | ⚠️ 没跑过。第一次 CI 可能要在 Xcode 版本 / 单条 API 签名上调一下 |
+| `ZhangwaKit` 协议层 | ✅ 本机 Swift 6.2.3 编译 + 17 个测试全过；CI（macOS + Xcode 26）也全过 |
+| `App/` SwiftUI 层 | ✅ **CI 上真实编译通过**（iOS 26 SDK / Xcode 26 / arm64） |
+| Liquid Glass API | ✅ 编译通过，且二进制里确认链上了 `glassEffect` / `GlassEffectContainer` / `tabBarMinimizeBehavior` / `scrollEdgeEffectStyle` |
+| 未签名 IPA | ✅ 产出并校验：Payload 结构正确、无 `_CodeSignature` 残留、`MinimumOSVersion 26.0`、arm64、图标已编译、`BundledConfig.plist` 已注入 |
+| 滚动 Release 直链 | ✅ 实测 HTTP 206 可下载，返回 PKZIP |
+| 真机运行 | ⚠️ 没跑过 —— 需要你自签装到手机上才能确认运行时行为 |
 
-SwiftUI 层的风险已经收敛到 **一个文件**（`LiquidGlass.swift`）。
-CI 第一次失败八成是那里，按注释里标注的系统能力对照 Apple 文档改一行即可。
+### 第一次 CI 挂在哪，修了什么
+
+留个记录，以后改 `LiquidGlass.swift` 时能少踩一次：
+
+```
+EndpointsView.swift:70: error: type 'ShapeStyle' has no member 'zwMint'
+LiquidGlass.swift:73:   error: type 'some Hashable' does not conform to the 'Sendable' protocol
+```
+
+1. `.foregroundStyle(.zwMint)` 这种写法要求成员挂在 **`ShapeStyle`** 上，光有 `extension Color`
+   不够（SwiftUI 内置的 `.blue` / `.red` 也是declare两份）。补了一份
+   `extension ShapeStyle where Self == Color`。
+2. `glassEffectID` 的签名是 `some Hashable & Sendable`，Swift 6 严格并发下
+   `some Hashable` 不够，得写全。
+
+**其余玻璃 API 一次过**，包括 `MeshGradient`、`GlassEffectContainer`、`ToolbarSpacer`、
+`tabBarMinimizeBehavior`：说明按文档写的签名都是对的。
 
 ---
 
