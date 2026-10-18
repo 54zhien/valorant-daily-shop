@@ -91,6 +91,45 @@ final class AppModel {
         }
     }
 
+    /// 启动 / 每次回到前台时调一次。
+    ///
+    /// **这是「脱离电脑」的关键**：ct 的 7 天寿命靠自己续下去，
+    /// 只要 App 每次被打开时都续一下，就永远不需要再回电脑上抓包。
+    /// 所以这个不能只在「读取商店」时调 —— 用户可能只是想看一眼就关掉。
+    func renewSessionIfNeeded() async {
+        guard hasSession else { return }
+        guard client.needsClientTicketRenewal else { return }
+        let ok = await client.ensureFreshClientTicket()
+        applySession(client.session)
+        push(ok ? "登录态已自动续期（下次续期在 1 天后）"
+                : "登录态续期失败 —— 可能 ct 已过期，需要重新抓一次包")
+    }
+
+    /// 把登录态导出成一段文本，方便备份。
+    ///
+    /// 为什么需要：这是**唯一一份**能长期用的凭证。
+    /// 万一 App 被删、换手机、或者 ct 真的断了，有备份就能直接粘回来，
+    /// 不用再回电脑上抓一次包。
+    func exportSession() -> String {
+        let s = client.session
+        let dict: [String: Any] = [
+            "user_id": s.userID,
+            "ct": s.ct,
+            "auth_type": s.authType.rawValue,
+            "openid": s.openID,
+            "uin": String(s.uin),
+            "access_token": s.accessToken,
+            "tid": s.tid,
+            "ct_updated_at": s.ctUpdatedAt,
+        ]
+        guard let data = try? JSONSerialization.data(
+                withJSONObject: dict, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return text
+    }
+
     var hasSession: Bool { session.isValid }
 
     /// ct 还有多久过期（7 天窗口）。nil = 不知道。

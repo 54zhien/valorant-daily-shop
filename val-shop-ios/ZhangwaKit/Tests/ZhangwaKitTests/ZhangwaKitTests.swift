@@ -480,29 +480,48 @@ struct ZhangwaKitTests {
         #expect(!c.needsClientTicketRenewal, "刚续过就不该再续")
     }
 
-    @Test("ct 快到 7 天才续")
+    @Test("ct 超过 1 天就续（每天开一次 App 就能永远续下去）")
     func ctRenewalTiming() {
         let now = Date().timeIntervalSince1970
 
-        func needs(afterDays days: Double, ct: String = "CT") -> Bool {
+        func needs(afterHours h: Double, ct: String = "CT") -> Bool {
             var s = qqSession()
             s.ct = ct
-            s.ctUpdatedAt = now - days * 86_400
+            s.ctUpdatedAt = now - h * 3_600
             return ZhangwaClient(session: s).needsClientTicketRenewal
         }
 
-        #expect(!needs(afterDays: 0))     // 刚拿到
-        #expect(!needs(afterDays: 5))     // 5 天，还没到
-        #expect(needs(afterDays: 6.5))    // 进了续期窗口（7 天 - 1 天余量）
-        #expect(needs(afterDays: 8))      // 已经过期
+        #expect(!needs(afterHours: 0))       // 刚拿到
+        #expect(!needs(afterHours: 12))      // 半天，还早
+        #expect(!needs(afterHours: 23))      // 差一小时到一天
+        #expect(needs(afterHours: 25))       // 过一天了，续
+        #expect(needs(afterHours: 24 * 6))   // 6 天
+        #expect(needs(afterHours: 24 * 8))   // 已经过期
+
+        // 续期窗口必须明显小于 7 天寿命，否则「忘了开几天」就断
+        #expect(ZhangwaSession.ctRenewInterval < ZhangwaSession.ctLifetime / 2)
 
         // 没有 ct 就续不了 —— 不该被判成「该续」（续也续不动）
-        #expect(!needs(afterDays: 8, ct: ""))
+        #expect(!needs(afterHours: 24 * 8, ct: ""))
 
-        // 但「有 ct 却没记时间」要判成该续（比如用户直接粘的 Cookie）
+        // 但「有 ct 却没记时间」要判成该续（比如用户直接粘的未必带时间戳）
         var noStamp = qqSession()
         noStamp.ctUpdatedAt = 0
         #expect(ZhangwaClient(session: noStamp).needsClientTicketRenewal)
+    }
+
+    @Test("ct 剩余时间算得对")
+    func ctSecondsLeft() {
+        let now = Date().timeIntervalSince1970
+        var s = qqSession()
+        s.ctUpdatedAt = now
+        let c = ZhangwaClient(session: s)
+        let left = c.clientTicketSecondsLeft ?? 0
+        // 刚拿到的应该接近 7 天
+        #expect(abs(left - ZhangwaSession.ctLifetime) < 5)
+
+        s.ct = ""
+        #expect(ZhangwaClient(session: s).clientTicketSecondsLeft == nil)
     }
 
     @Test("实测的有效期常量")

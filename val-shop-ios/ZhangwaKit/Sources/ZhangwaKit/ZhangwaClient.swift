@@ -317,13 +317,24 @@ public final class ZhangwaClient {
     /// 要不要续 ct。
     ///
     /// ct 有效期 7 天（实测 `refresh_ct_span = 604800`），
-    /// 但在过期前用旧 ct 换一张新的就能一直滚下去 —— 抓一次包够用一辈子。
+    /// 但在过期前用旧 ct 换一张新的就能一直滚下去 —— **抓一次包够用一辈子**。
+    ///
+    /// 续期条件设成「超过 1 天」，所以只要每天打开一次 App 就永远活着，
+    /// 而且留了 6 天余量（忘了开几天也不会断）。
     public var needsClientTicketRenewal: Bool {
         guard !session.ct.isEmpty, !session.userID.isEmpty else { return false }
         // 不知道是什么时候拿的，就先续一次
         guard session.ctUpdatedAt > 0 else { return true }
         let age = Date().timeIntervalSince1970 - session.ctUpdatedAt
-        return age > (ZhangwaSession.ctLifetime - ZhangwaSession.ctRenewMargin)
+        return age > ZhangwaSession.ctRenewInterval
+    }
+
+    /// ct 还剩多久过期（秒）。负数 = 已经过期。nil = 没 ct。
+    public var clientTicketSecondsLeft: TimeInterval? {
+        guard !session.ct.isEmpty else { return nil }
+        guard session.ctUpdatedAt > 0 else { return nil }
+        return session.ctUpdatedAt + ZhangwaSession.ctLifetime
+            - Date().timeIntervalSince1970
     }
 
     /// 该续就续，不该续就什么都不做。失败不抛错（下次自然还会试）。

@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import UniformTypeIdentifiers
 import ZhangwaKit
 
@@ -13,11 +13,13 @@ struct SettingsView: View {
     @State private var cookieDraft = ""
     @State private var revealingCookie = false
     @State private var importPastedResult: String?
+    @State private var exported: String?
 
     var body: some View {
         NavigationStack {
             Form {
                 statusSection
+                backupSection
                 importSection
                 cookieSection
                 shopSection
@@ -58,6 +60,12 @@ struct SettingsView: View {
                 Text(model.ctExpiryText)
                     .foregroundStyle(model.session.ct.isEmpty ? .orange : .secondary)
             }
+            LabeledContent("自动续期") {
+                Text(model.session.ct.isEmpty
+                     ? "无 ct 时续不了"
+                     : "每次打开 App 检查，超过 1 天就续")
+                    .foregroundStyle(.secondary)
+            }
             LabeledContent("tid（= wt）") {
                 Text(model.session.tid.isEmpty ? "无" : "有")
                     .foregroundStyle(model.session.tid.isEmpty ? .orange : .green)
@@ -81,6 +89,42 @@ struct SettingsView: View {
             if model.session.ct.isEmpty && model.hasSession {
                 Text("这份会话没有 ct，无法自刷新 —— tid 过期后需要重新抓包。")
             }
+        }
+    }
+
+    // MARK: 备份
+    //
+    // 手里这份登录态是**唯一一份**能长期用的凭证。
+    // 备份出去，就不怕 App 被删 / 换手机 / ct 真的断了 —— 有备份直接粘回来，
+    // 不用再回电脑上抓一次包。
+
+    private var backupSection: some View {
+        Section {
+            Button {
+                let text = model.exportSession()
+                guard !text.isEmpty else {
+                    model.push("导出失败：没有可导出的登录态")
+                    return
+                }
+                UIPasteboard.general.string = text
+                exported = text
+                model.push("✅ 登录态已复制到剪贴板 —— 存到备忘录 / 发给自己，别丢了")
+            } label: {
+                Label("备份登录态（复制到剪贴板）", systemImage: "doc.on.doc")
+            }
+            .disabled(!model.hasSession)
+
+            if let text = exported {
+                ShareLink(item: text) {
+                    Label("分享出去（存文件 / 发微信）", systemImage: "square.and.arrow.up")
+                }
+            }
+        } header: {
+            Text("备份")
+        } footer: {
+            Text("这份东西不包含密码，但等同于登录状态 —— 别发到公开地方。\n"
+                 + "只要 App 每 7 天内被打开过一次，ct 就会自动续下去，"
+                 + "正常情况下你永远用不到这个备份。")
         }
     }
 

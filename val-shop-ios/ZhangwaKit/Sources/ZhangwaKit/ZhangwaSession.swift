@@ -81,8 +81,17 @@ public struct ZhangwaSession: Codable, Equatable, Sendable {
     public static let ctLifetime: TimeInterval = 604_800
     /// wt 有效期：30 分钟（`refresh_wt_span = 1800`）—— 过期就 999999
     public static let wtLifetime: TimeInterval = 1_800
-    /// 提前一天续 ct，别卡在边界上
-    public static let ctRenewMargin: TimeInterval = 86_400
+
+    /// 隔多久续一次 ct。
+    ///
+    /// **这个值直接决定了「多久必须打开一次 App」。**
+    /// ct 本身活 7 天，但只要在过期前用旧的换一张新的，就能一直滚下去。
+    /// 设成 1 天的话：每天开一次 App（哪怕只开一下就关）ct 就永远活着，
+    /// 而且留了 6 天余量 —— 忘了开几天也不会死。
+    ///
+    /// 之前设的是「剩 1 天才续」（= 第 6 天），那样只要 7 天没开 App 就断了，
+    /// 余量太小。宁可多调一次接口，也要把余量拉满。
+    public static let ctRenewInterval: TimeInterval = 86_400
 
     public var accountType: Int { authType.accountType }
 
