@@ -2,6 +2,26 @@
 
 原生 SwiftUI 的独立每日商店 App。**代码推 GitHub → Actions 出未签名 IPA → 手机上自签安装。**
 
+> **✅ 2026-10-18 实机验证通过**：iPhone 上自签安装后成功读到真实每日商店数据。
+>
+> 接口：`POST /go/mlol_store/agame/user_store`，body `{}`。
+> 完整逆向过程见 [`../val-shop/analysis/掌瓦数据链路分析.md`](../val-shop/analysis/掌瓦数据链路分析.md) §2。
+
+## ⚠️ 用之前必须知道的一件事
+
+**`wt`（Cookie 里的 `tid`）只有 30 分钟有效期。**
+
+```
+refresh_wt_span = 1800     wt  30 分钟   ← 很容易过期
+refresh_ct_span = 604800   ct   7 天
+```
+
+所以**不要试图存一份长期有效的 Cookie** —— 过半小时就废。
+正确做法是导入带 `ct` 的登录态，App 遇到 `999999 票据异常` 会自动用 `ct` 换新 `wt` 再重试。
+
+如果连 `ct` 也过期了（7 天），只能重新抓一次包。
+
+
 技术栈按 Apple 2025–2026 最新要求：**iOS 26 部署目标 + Liquid Glass 全家桶 + Swift 6 严格并发 + Observation + Swift Testing**。
 
 ```
