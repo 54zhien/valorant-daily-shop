@@ -76,6 +76,12 @@ public final class QQLogin {
 
     static let hostAPI = "https://app.mval.qq.com"
 
+    /// 伪装成 Android。理由见 `fetchEntryURL` 的注释 ——
+    /// 主要是个双保险（真正解决问题的是我们自己抓 entry URL 做顶层导航）。
+    nonisolated public static let androidUA =
+        "Mozilla/5.0 (Linux; Android 12; SM-S9210) AppleWebKit/537.36 "
+        + "(KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.154 Mobile Safari/537.36"
+
     // MARK: 状态
 
     public enum Stage: Equatable, Sendable {
@@ -139,6 +145,82 @@ public final class QQLogin {
     /// 当前时间戳（秒）。服务端会校验 time 的时效性，所以每次都要现取。
     nonisolated public static func nowTimestamp() -> String {
         String(Int(Date().timeIntervalSince1970))
+    }
+
+    // MARK: ①b 抓入口页，把真正的登录页 URL 抠出来
+
+    /// 从 m_authorize 页面里把 `var src = "..."` 抠出来，做**反斜杠转义还原**。
+    ///
+    /// 为什么要自己抓、而不是让 WebView 直接加载 m_authorize：
+    ///
+    /// 那个页面最后有这么一段：
+    ///
+    ///     if (isIos()) {
+    ///         if (inMQQ()) { window.open(src, '_self') }
+    ///         else { document.write('<iframe ... src="', src, '"></iframe>') }
+    ///     } else {
+    ///         location.replace(src);
+    ///     }
+    ///
+    /// iOS 上只要它认为你在 iOS、又不在 QQ 里，就会把登录页塞进 **iframe**。
+    /// 而 xui.ptlogin2.qq.com 一旦成了第三方域，iOS 会拦它的 Cookie，
+    /// ptlogin2 的会话就建不起来 —— 二维码画不出来，或者扫了说过期。
+    ///
+    /// 我们把「抠 URL」和「导航」都自己做，就永远是**顶层导航**，
+    /// 根本不给它走 iframe 的机会。也不依赖 UA 伪装（那个依然留着当双保险）。
+    public func fetchEntryURL(time: String) async throws -> URL {
+        var req = URLRequest(url: authorizeURL(time: time))
+        req.setValue(Self.androidUA, forHTTPHeaderField: "User-Agent")
+        let (data, http) = try await transport(req, 25)
+        guard (200..<300).contains(http.statusCode) else {
+            throw ZhangwaError.transport("入口页 HTTP \(http.statusCode)")
+        }
+        let html = String(data: data, encoding: .utf8) ?? ""
+        guard let entry = Self.extractEntryURL(from: html) else {
+            throw ZhangwaError.transport("入口页里没找到登录页地址")
+        }
+        return entry
+    }
+
+    /// 从 m_authorize 的 HTML 里抠 `var src = "..."` 并还原转义。
+    ///
+    /// 源码里的形态是 `https\x3A\x2F\x2Fxui.ptlogin2...` ——
+    /// 每个特殊字符都用 `\xNN` 转义过，所以要还原一层。
+    nonisolated public static func extractEntryURL(from html: String) -> URL? {
+        // 先把 HTML 里的 \xNN 还原（源码里是双反斜杠，字符串里是单反斜杠）
+        let restored = unescapeHex(html)
+        // 找 src = "http..." 或 src='http...'
+        guard let range = restored.range(of: #"src\s*=\s*["'](https?://[^"']+)["']"#,
+                                         options: .regularExpression) else { return nil }
+        let matched = String(restored[range])
+        guard let urlStart = matched.range(of: "http") else { return nil }
+        var url = String(matched[urlStart.lowerBound...])
+        // 去掉结尾的引号
+        while let last = url.last, last == "\"" || last == "'" { url.removeLast() }
+        return URL(string: url)
+    }
+
+    /// 把 `\x3A` 这类转义还原成字符。
+    nonisolated static func unescapeHex(_ s: String) -> String {
+        var out = ""
+        out.reserveCapacity(s.count)
+        var i = s.startIndex
+        while i < s.endIndex {
+            let c = s[i]
+            if c == "\\",
+               let x = s.index(i, offsetBy: 1, limitedBy: s.endIndex), x < s.endIndex,
+               s[x] == "x" || s[x] == "X",
+               let d1 = s.index(i, offsetBy: 2, limitedBy: s.endIndex), d1 < s.endIndex,
+               let d2 = s.index(i, offsetBy: 3, limitedBy: s.endIndex), d2 < s.endIndex,
+               let v = UInt8(String(s[d1...d2]), radix: 16) {
+                out.append(Character(UnicodeScalar(v)))
+                i = s.index(i, offsetBy: 4)
+            } else {
+                out.append(c)
+                i = s.index(after: i)
+            }
+        }
+        return out
     }
 
     // MARK: ② 拼 URL

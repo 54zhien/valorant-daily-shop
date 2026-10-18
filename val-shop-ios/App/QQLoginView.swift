@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 import WebKit
 import ZhangwaKit
 
@@ -31,6 +31,7 @@ struct QQLoginView: View {
     /// 诊断信息（导航 + 页面探针）。二维码失效到底是服务端判的还是我们这边的问题，
     /// 看这个就能分辨 —— 别再靠猜。
     @State private var diag: [String] = []
+    @State private var copied = false
 
     var body: some View {
         NavigationStack {
@@ -107,7 +108,13 @@ struct QQLoginView: View {
         }
     }
 
-    /// 诊断面板 —— 出问题时让用户整块截图发过来就够了
+    /// 诊断文本（可复制，出问题时整段发过来）
+    private var diagLines: String {
+        (["QQ扫码诊断", "UA = Android（伪装）", "---"] + diag.reversed())
+            .joined(separator: "\n")
+    }
+
+    /// 诊断面板 —— 出问题时让用户整块截图 / 复制发过来就够了
     private var diagPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
@@ -177,9 +184,45 @@ struct QQLoginView: View {
                 dismiss()
             }
         }
-        // 每次打开都重新算 time + sign —— 服务端会校验时效性
-        url = login.authorizeURL(time: QQLogin.nowTimestamp())
-        login.markLoading()
+        Task { await prepare() }
+    }
+
+    /// 两步走：先从入口页把真正的登录页 URL 抠出来，再让 WebView 直接加载它。
+    ///
+    /// 为什么不把 m_authorize 直接丢给 WebView：
+    ///   那个页面最后有一段 iOS 特判，会把它塞进 `<iframe>`：
+    ///
+    ///       if (isIos()) {
+    ///           if (inMQQ()) { window.open(src, '_self') }
+    ///           else { document.write('<iframe ... src="', src, '"></iframe>') }
+    ///       } else { location.replace(src) }
+    ///
+    ///   iframe 里 xui.ptlogin2.qq.com 就是**第三方域**，iOS 的 ITP 会拦它的
+    ///   Cookie，ptlogin2 会话建不起来 —— 二维码画不出来或者扫了说过期。
+    ///   我们自己抠 URL、自己导航，就永远是**顶层导航**，不给它走 iframe 的机会。
+    @MainActor
+    private func prepare() async {
+        diag.removeAll()
+        url = nil
+        stage = .loading
+        let ts = QQLogin.nowTimestamp()
+        diag.insert("① 请求入口页（time=\(ts)，签名本地算）", at: 0)
+        do {
+            let entry = try await login.fetchEntryURL(time: ts)
+            diag.insert("② 抠到登录页 → \(entry.host ?? "?")", at: 0)
+            diag.insert("③ 顶层导航（绕开页面的 isIos/iframe 分支）", at: 0)
+            if diag.count > 16 { diag.removeLast() }
+            url = entry
+        } catch {
+            stage = .failed(error.localizedDescription)
+            diag.insert("✗ 抓入口页失败：\(error.localizedDescription)", at: 0)
+            diag.insert("   （如果这行出现，多半是网络或 sign/time 被拒）", at: 0)
+        }
+    }
+
+    /// 重来：重新算 time + sign + 重抓入口页
+    private func restart() {
+        Task { await prepare() }
     }
 }
 
@@ -189,9 +232,6 @@ struct QQLoginView: View {
 struct QQWebView: UIViewRepresentable {
     /// 伪装成 Android。理由见 makeUIView 里那段注释 ——
     /// 不这么做的话 QQ 会把登录页塞进 iframe，然后 Cookie 被 iOS 拦掉。
-    static let androidUA = "Mozilla/5.0 (Linux; Android 12; SM-S9210) AppleWebKit/537.36 "
-                         + "(KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.154 "
-                         + "Mobile Safari/537.36"
 
     let url: URL
     /// 变了就重新加载（点"刷新"时）
@@ -239,7 +279,7 @@ struct QQWebView: UIViewRepresentable {
         //
         //     设 customUserAgent（而不是只设 URLRequest 的 header）——
         //     后者只作用于首个请求，页面里 navigator.userAgent 读到的还是 iOS。
-        web.customUserAgent = QQWebView.androidUA
+        web.customUserAgent = QQLogin.androidUA
 
         context.coordinator.web = web
         context.coordinator.load(url)

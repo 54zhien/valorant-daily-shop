@@ -1,4 +1,4 @@
-﻿import Foundation
+import Foundation
 import Testing
 
 #if canImport(FoundationNetworking)
@@ -118,6 +118,63 @@ struct QQLoginTests {
         #expect(QQLogin.isCallback(URL(string: "auth://anything")!))
         #expect(!QQLogin.isCallback(URL(string: "https://tauth.qq.com/")!))
         #expect(!QQLogin.isCallback(URL(string: "about:blank")!))
+    }
+
+    // MARK: 入口 URL 提取（这次的关键改动）
+
+    @Test("还原 \\xNN 转义")
+    func unescapeHexEscapes() {
+        // m_authorize 页面里的 src 就是这种形态
+        #expect(QQLogin.unescapeHex(#"https\x3A\x2F\x2Fxui"#) == "https://xui")
+        #expect(QQLogin.unescapeHex(#"\x3F"#) == "?")
+        #expect(QQLogin.unescapeHex(#"\x26"#) == "&")
+        // 没有转义的照原样
+        #expect(QQLogin.unescapeHex("plain text") == "plain text")
+        #expect(QQLogin.unescapeHex("") == "")
+        // 结尾半个转义不能崩
+        #expect(QQLogin.unescapeHex(#"abc\x3"#) == #"abc\x3"#)
+        #expect(QQLogin.unescapeHex(#"abc\"#) == #"abc\"#)
+    }
+
+    @Test("从入口页 HTML 里抠出登录页 URL —— 用真机抓到的原文")
+    func extractEntryFromRealHTML() {
+        // 这段是从 MuMu 真机上抓下来的 m_authorize 响应（原样，含 \xNN 转义）
+        let html = #"""
+        <script language="javascript">
+        var src = "https:\x2F\x2Fxui.ptlogin2.qq.com\x2Fcgi-bin\x2Fxlogin\x3Fpt_enable_pwd\x3D1\x26appid\x3D716027609\x26pt_3rd_aid\x3D102061775\x26daid\x3D381\x26style\x3D35\x26force_qr\x3D1\x26autorefresh\x3D1\x26s_url\x3Dhttp\x253A\x252F\x252Fconnect.qq.com\x26sign\x3D1800a311d54700ffe0d5425cd100481d\x26time\x3D1792331444";
+        if (isIos()) { document.write('<iframe src="', src, '"></iframe>'); }
+        </script>
+        """#
+        let url = QQLogin.extractEntryURL(from: html)
+        #expect(url != nil)
+        let s = url?.absoluteString ?? ""
+        #expect(s.hasPrefix("https://xui.ptlogin2.qq.com/cgi-bin/xlogin?"))
+        #expect(s.contains("force_qr=1"))            // ★ 没有它就不是扫码模式
+        #expect(s.contains("appid=716027609"))
+        #expect(s.contains("pt_3rd_aid=102061775"))
+        #expect(s.contains("style=35"))
+        // \xNN 必须还原干净，不能留着反斜杠
+        #expect(!s.contains("\\x"))
+        #expect(!s.contains("%5Cx"))
+    }
+
+    @Test("提取失败时要返回 nil，不能乱猜")
+    func extractEntryEdgeCases() {
+        #expect(QQLogin.extractEntryURL(from: "") == nil)
+        #expect(QQLogin.extractEntryURL(from: "<html>没有 src</html>") == nil)
+        // 有 src 但不是 http 的，不算
+        #expect(QQLogin.extractEntryURL(from: #"var src = "ftp://x""#) == nil)
+    }
+
+    @Test("伪装 UA 里不能有 iOS 标识 —— 否则 isIos() 会真")
+    func androidUADoesNotLookIOS() {
+        let ua = QQLogin.androidUA
+        #expect(ua.contains("Android"))
+        #expect(!ua.contains("iPhone"))
+        #expect(!ua.contains("iPad"))
+        #expect(!ua.contains("iPod"))
+        // 也不能带 QQ/ —— 否则页面会走 window.open 分支（那是给真 QQ 客户端用的）
+        #expect(!ua.contains("QQ/"))
     }
 
     // MARK: 换登录态
