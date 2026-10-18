@@ -1,0 +1,20 @@
+# Xcode / SwiftPM
+.build/
+.swiftpm/
+DerivedData/
+build/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcarchive
+Payload/
+*.ipa
+*.dSYM
+
+# XcodeGen 的产物（由 project.yml 生成，不入库）
+ZhangwaShop.xcodeproj/
+
+# 注意：App/BundledConfig.plist 是要入库的（只放商店路径，不放凭据），
+# CI 会覆写它。凭据一律在手机上导入，不要提交。
+
+.DS_Store

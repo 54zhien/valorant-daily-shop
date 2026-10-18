@@ -1,0 +1,69 @@
+# XcodeGen 工程描述。装了 xcodegen 之后在 val-shop-ios/ 下执行：
+#   xcodegen generate
+#   open ZhangwaShop.xcodeproj
+#
+# 不想装 xcodegen 也行：Xcode → New Project → iOS App (SwiftUI)
+#   · 把 App/*.swift 拖进 target
+#   · File → Add Package Dependencies… → Add Local… → 选 ZhangwaKit 目录
+#   · 按下面的 settings 逐项对齐（尤其是 SWIFT_VERSION 和 Actor 隔离那两项）
+name: ZhangwaShop
+
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  ZhangwaKit:
+    path: ZhangwaKit
+
+settings:
+  base:
+    # ---- Swift 6 / 最新工具链 ----
+    SWIFT_VERSION: "6.0"                          # Swift 6 语言模式（严格并发）
+    SWIFT_APPROACHABLE_CONCURRENCY: YES           # Approachable Concurrency
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor      # MainActor-by-default（App target 推荐做法）
+    SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+
+    # ---- Liquid Glass / 最新设计 ----
+    # 注意：不要设 UIDesignRequiresCompatibility（那是回退旧外观的临时开关，
+    # iOS 27 会被移除）。Info.plist 里已经刻意不写。
+
+    # ---- 资源 ----
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+
+    # ---- 签名 ----
+    CODE_SIGN_STYLE: Automatic
+    # 免费 Apple ID 侧载时填你自己的 Team ID，或者直接在 Xcode 里选
+    # DEVELOPMENT_TEAM: XXXXXXXXXX
+
+targets:
+  ZhangwaShop:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - path: App/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_NAME: ZhangwaShop
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zhangwashop
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"             # iPhone + iPad
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: YES
+    dependencies:
+      - package: ZhangwaKit
+        product: ZhangwaKit

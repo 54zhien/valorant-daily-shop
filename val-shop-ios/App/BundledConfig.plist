@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  构建期注入的默认值。
+
+  CI（.github/workflows/ios.yml）会用仓库 Variable `ZW_SHOP_PATH` 覆写这里的 shopPath，
+  这样手机上装完就不用再手输接口路径了。
+
+  这个文件里不要放任何凭据 —— Cookie / ct / token 一律在手机上导入。
+  优先级：UserDefaults（App 里改过的） > 这个文件。
+-->
+<plist version="1.0">
+<dict>
+	<key>shopPath</key>
+	<string></string>
+	<key>shopBody</key>
+	<string>{}</string>
+</dict>
+</plist>

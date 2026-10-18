@@ -1,0 +1,186 @@
+name: Build IPA
+
+# 出未签名 IPA，手机上用自签工具装。
+# 也可以在 Actions 页面手动触发（workflow_dispatch）。
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'val-shop-ios/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'val-shop-ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1) 协议层单测：不需要账号、不联网、不需要签名，几十秒
+  # ------------------------------------------------------------------
+  test:
+    name: ZhangwaKit 单元测试
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选用最新的 Xcode 26
+        run: |
+          set -euo pipefail
+          echo "默认 Xcode: $(xcodebuild -version | head -1)"
+          CANDIDATE="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$CANDIDATE" ]; then
+            sudo xcode-select -s "$CANDIDATE"
+            echo "已切换到 $CANDIDATE"
+          else
+            echo "::warning::没找到 Xcode_26*.app，沿用默认版本"
+          fi
+          xcodebuild -version
+          swift --version
+
+      - name: swift test
+        working-directory: val-shop-ios/ZhangwaKit
+        run: swift test
+
+  # ------------------------------------------------------------------
+  # 2) 构建未签名 IPA
+  # ------------------------------------------------------------------
+  build:
+    name: 构建未签名 IPA
+    needs: test
+    runs-on: macos-26
+
+    env:
+      # 仓库 Settings → Secrets and variables → Actions → Variables 里可覆盖
+      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.zhangwashop' }}
+      ZW_SHOP_PATH: ${{ vars.ZW_SHOP_PATH }}
+      ZW_SHOP_BODY: ${{ vars.ZW_SHOP_BODY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选用最新的 Xcode 26
+        run: |
+          set -euo pipefail
+          CANDIDATE="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$CANDIDATE" ]; then
+            sudo xcode-select -s "$CANDIDATE"
+          fi
+          xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 写入构建期配置（商店接口路径）
+        working-directory: val-shop-ios
+        env:
+          PATH_VALUE: ${{ vars.ZW_SHOP_PATH }}
+          BODY_VALUE: ${{ vars.ZW_SHOP_BODY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, plistlib, pathlib
+          path = os.environ.get("PATH_VALUE", "").strip()
+          body = os.environ.get("BODY_VALUE", "").strip() or "{}"
+          out = pathlib.Path("App/BundledConfig.plist")
+          payload = {"shopPath": path, "shopBody": body}
+          out.write_bytes(plistlib.dumps(payload))
+          print(f"BundledConfig.plist -> shopPath={path or '(空)'} shopBody={body}")
+          PY
+
+      - name: 生成 Xcode 工程
+        working-directory: val-shop-ios
+        env:
+          PRODUCT_BUNDLE_IDENTIFIER: ${{ env.BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          # project.yml 里读不到 env 时用默认值，这里直接 sed 覆盖 bundle id
+          if [ -n "${PRODUCT_BUNDLE_IDENTIFIER:-}" ]; then
+            sed -i '' "s|PRODUCT_BUNDLE_IDENTIFIER: .*|PRODUCT_BUNDLE_IDENTIFIER: ${PRODUCT_BUNDLE_IDENTIFIER}|" project.yml
+          fi
+          grep -n 'PRODUCT_BUNDLE_IDENTIFIER' project.yml
+          xcodegen generate
+          ls -la
+
+      - name: 构建（不签名）
+        working-directory: val-shop-ios
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ZhangwaShop.xcodeproj \
+            -scheme ZhangwaShop \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: 打包成 IPA
+        working-directory: val-shop-ios
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Build/Products/Release-iphoneos/ZhangwaShop.app"
+          test -d "$APP_PATH"
+
+          rm -rf Payload "ZhangwaShop-unsigned.ipa"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+
+          # 自签工具会自己塞证书，所以这里确保没有残留签名
+          rm -rf Payload/ZhangwaShop.app/_CodeSignature
+          rm -f  Payload/ZhangwaShop.app/embedded.mobileprovision
+
+          zip -qry "ZhangwaShop-unsigned.ipa" Payload
+
+          echo "--- 产物 ---"
+          ls -lh ZhangwaShop-unsigned.ipa
+          echo "--- App 里的关键信息 ---"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZhangwaShop-unsigned-ipa
+          path: val-shop-ios/ZhangwaShop-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 构建摘要
+        if: always()
+        run: |
+          {
+            echo "### 构建结果"
+            echo ""
+            echo "- Bundle ID: \`${BUNDLE_ID}\`"
+            echo "- 商店接口路径: \`${ZW_SHOP_PATH:-（空，装好后在 App 里填）}\`"
+            echo "- IPA: 见下方 Artifacts"
+            echo ""
+            echo "> 未签名 IPA，用手机上的自签工具（ESign / 全能签 / AltStore 等）签名后安装。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+# 说明
+# ----
+# · 跑在 macos-26 runner 上（自带 Xcode 26）。如果没有这个 label，
+#   换成 macos-15 并手动指定 Xcode 26。
+# · 产物是【未签名】IPA：去掉了 _CodeSignature 和 embedded.mobileprovision，
+#   交给手机上的自签工具自己塞证书。
+# · 想省掉在手机上手输商店接口路径，就到
+#   Settings → Secrets and variables → Actions → Variables 建一个
+#   ZW_SHOP_PATH 变量（值形如 /go/agame/asset/storefront），构建时会写进
+#   App/BundledConfig.plist。

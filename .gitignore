@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# 仓库根 .gitignore
+#
+# 关键：APK 样本和反编译产物都不要入库 ——
+# com.tencent.apps.valorant.apk 有 112MB，超过 GitHub 单文件 100MB 限制；
+# work/out 是 jadx 反出来的 5.9 万个 .java，几个 GB。
+# 这两样本地留着跑分析就行，仓库里只需要分析报告和代码。
+# ---------------------------------------------------------------------------
+
+# 样本 APK（自己本地留一份）
+*.apk
+*.apks
+*.xapk
+*.aab
+
+# 反编译 / 反汇编产物
+/work/apk/
+/work/out/
+/work/jadxtool/*.jar
+/work/jadxtool/*.class
+/work/.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# 抓包产物（里面有 Cookie / token，绝对不能提交）
+*.har
+*.saz
+*.pcap
+*.pcapng
+mval_session.json
+mval_capture.log
+mval-*.jsonl
+*.flow
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+desktop.ini
