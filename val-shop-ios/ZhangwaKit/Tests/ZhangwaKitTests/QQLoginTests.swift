@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import Testing
 
 #if canImport(FoundationNetworking)
@@ -202,13 +202,14 @@ struct QQLoginTests {
 
     // MARK: 脚手架
 
+    /// 同 QRLoginTests：登录接口返回的是 `login_info`，不是 `ct_info`
     static let loginResponse = """
     {"result":0,"msg":"","data":{
-      "ct_info":{"ct":"CT_QQ","wt":"WT_QQ","result":0,"user_id":"JA-QQ",
-                 "uin":2751275315,"openid":"74193457a-b8d058817457ae26_10200",
-                 "refresh_ct_span":604800,"refresh_wt_span":1800},
       "bind_info":[{"uin":"A44A6AA89A42ECA6909C2492C2193D14",
-                    "openid":"A44A6AA89A42ECA6909C2492C2193D14","uuid":"JA-QQ"}]
+                    "openid":"A44A6AA89A42ECA6909C2492C2193D14","uuid":"JA-QQ"}],
+      "login_info":{"ct":"CT_QQ","wt":"WT_QQ","user_id":"JA-QQ",
+                    "uin":2751275315,"openid":"74193457a-b8d058817457ae26_10200",
+                    "ctt":"CTT_QQ"}
     }}
     """
 

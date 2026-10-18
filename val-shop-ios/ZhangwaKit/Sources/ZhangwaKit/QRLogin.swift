@@ -1,4 +1,4 @@
-﻿import Foundation
+import Foundation
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -354,32 +354,48 @@ public final class QRLogin {
                                    dataPreview: nil)
         }
 
-        // 响应结构和 refresh_client_ticket 一样：data.ct_info + data.bind_info
+        // ⚠️ 这里是 `login_info`，**不是** `ct_info`。
+        //
+        // refresh_client_ticket 返回的是 data.ct_info，
+        // 但 login_by_wechat 返回的是 data.login_info，两者字段名一样但外层 key 不同。
+        // 而且 bind_info 在 **data 顶层**，不在 login_info 里面。
+        // （依据 com/tencent/wglogin/authsuite/protocol/LoginResult.java）
+        //
+        // 第一版我照 refresh 抄了 ct_info，结果扫码扫码全成功、卡在最后一步
+        // 报「登录响应里没有可用的登录态」—— 就是这儿。
         var session = ZhangwaSession()
         session.authType = .wechat
         let root = (json["data"] as? [String: Any]) ?? json
-        if let info = root["ct_info"] as? [String: Any] {
-            session.ct = ZhangwaClient.stringValue(info["ct"]) ?? ""
-            session.tid = ZhangwaClient.stringValue(info["wt"]) ?? ""
-            session.userID = ZhangwaClient.stringValue(info["user_id"]) ?? ""
-            if let u = ZhangwaClient.intValue(info["uin"]) { session.uin = Int64(u) }
-        } else {
-            session.ct = ZhangwaClient.stringValue(root["ct"]) ?? ""
-            session.tid = ZhangwaClient.stringValue(root["wt"]) ?? ""
-            session.userID = ZhangwaClient.stringValue(root["user_id"]) ?? ""
-        }
-        // Cookie 的 openid 必须来自 bind_info（QQ openid），
-        // 不能用 ct_info.openid（那是掌瓦自己的 openid）—— 详见 ZhangwaClient 里的注释
-        if let binds = root["bind_info"] as? [[String: Any]],
+        let info = (root["login_info"] as? [String: Any])
+            ?? (root["ct_info"] as? [String: Any])     // 兜底：万一哪天又改回去
+            ?? root
+        session.ct = ZhangwaClient.stringValue(info["ct"]) ?? ""
+        session.tid = ZhangwaClient.stringValue(info["wt"]) ?? ""
+        session.userID = ZhangwaClient.stringValue(info["user_id"]) ?? ""
+        if let u = ZhangwaClient.intValue(info["uin"]) { session.uin = Int64(u) }
+
+        // Cookie 的 openid 必须来自 bind_info（那里是 QQ/微信 的 openid），
+        // 不能用 login_info.openid（那是掌瓦自己的）—— 详见 ZhangwaClient 里的注释
+        if let binds = (root["bind_info"] as? [[String: Any]])
+                        ?? (root["accounts"] as? [[String: Any]]),
            let mine = binds.first(where: { ZhangwaClient.stringValue($0["uuid"]) == session.userID })
                        ?? binds.first,
            let oid = ZhangwaClient.stringValue(mine["openid"]) {
             session.openID = oid
         }
+        // 再兜底一次：login_info.third_openid 有时是公众号侧的 openid
+        if session.openID.isEmpty {
+            session.openID = ZhangwaClient.stringValue(info["third_openid"]) ?? ""
+        }
+        session.accessToken = ZhangwaClient.stringValue(info["ctt"]) ?? ""
         session.ctUpdatedAt = Date().timeIntervalSince1970
 
         guard session.isValid else {
-            throw ZhangwaError.transport("登录响应里没有可用的登录态")
+            // 把实际拿到的结构吐出来 —— 下次再对不上就不用瞎猜了
+            let keys = root.keys.sorted().joined(separator: ",")
+            let infoKeys = info.keys.sorted().joined(separator: ",")
+            throw ZhangwaError.transport(
+                "登录响应里没有可用的登录态。data=[\(keys)] info=[\(infoKeys)]")
         }
         return session
     }

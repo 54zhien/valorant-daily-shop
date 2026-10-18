@@ -187,6 +187,52 @@ struct QRLoginTests {
         #expect(info["check_third_type"] as? Int == 0)
     }
 
+    @Test("登录：返回值在 login_info 里，不是 ct_info（这个坑踩过）")
+    func loginReadsLoginInfoNotCtInfo() async throws {
+        // 真机上扫码扫成功、微信也提示"已登录"，但 App 报
+        // 「登录响应里没有可用的登录态」—— 就是因为我照 refresh_client_ticket
+        // 抄了 ct_info，而登录接口返回的是 login_info。
+        let box = ScriptBox([Self.loginResponse])
+        let q = QRLogin(transport: Self.transport(box))
+        let s = try await q.login(code: "X")
+        #expect(s.ct == "NEW_CT")        // 只有读对 key 才拿得到
+        #expect(s.tid == "NEW_WT")
+        #expect(s.userID == "JA-1")
+        #expect(s.accessToken == "CTT_VALUE")
+    }
+
+    @Test("登录：万一哪天又改回 ct_info，也要能兜住")
+    func loginFallsBackToCtInfo() async throws {
+        // 兜底分支：login_info 不在、ct_info 在
+        let resp = """
+        {"result":0,"msg":"","data":{
+          "bind_info":[{"openid":"A44A6AA89A42ECA6909C2492C2193D14","uuid":"JA-1"}],
+          "ct_info":{"ct":"OLD_CT","wt":"OLD_WT","user_id":"JA-1"}
+        }}
+        """
+        let box = ScriptBox([resp])
+        let q = QRLogin(transport: Self.transport(box))
+        let s = try await q.login(code: "X")
+        #expect(s.ct == "OLD_CT")
+        #expect(s.userID == "JA-1")
+    }
+
+    @Test("登录：解析不出来时，报错要带上实际结构")
+    func loginErrorShowsShape() async {
+        // 结构完全不对时，错误信息里得能看出收到了什么 key，
+        // 不然下次还得靠猜
+        let resp = #"{"result":0,"msg":"","data":{"unexpected":{"a":1}}}"#
+        let box = ScriptBox([resp])
+        let q = QRLogin(transport: Self.transport(box))
+        do {
+            _ = try await q.login(code: "X")
+            Issue.record("应该抛错")
+        } catch {
+            let msg = error.localizedDescription
+            #expect(msg.contains("unexpected"))     // 把真实 key 列出来了
+        }
+    }
+
     @Test("登录：Cookie 的 openid 必须取 bind_info，不能取 ct_info.openid")
     func loginOpenIDFromBindInfo() async throws {
         let box = ScriptBox([Self.loginResponse])
@@ -248,13 +294,22 @@ struct QRLoginTests {
 
     // MARK: 测试脚手架
 
+    /// **登录接口的真实返回结构** —— 别照 refresh_client_ticket 抄！
+    ///
+    /// 依据 com/tencent/wglogin/authsuite/protocol/LoginResult.java：
+    ///   data.bind_info   在 data **顶层**
+    ///   data.login_info  是 `login_info`，**不是** `ct_info`
+    ///
+    /// 这两个 key 名字很像、字段名几乎一样，但外层 key 不同。
+    /// 我第一版抄错了，导致扫码扫码全成功、卡在最后一步解析不出来。
     static let loginResponse = """
     {"result":0,"msg":"","data":{
-      "ct_info":{"ct":"NEW_CT","wt":"NEW_WT","result":0,"user_id":"JA-1",
-                 "uin":2751275315,"openid":"74193457a-b8d058817457ae26_10200",
-                 "refresh_ct_span":604800,"refresh_wt_span":1800},
       "bind_info":[{"uin":"A44A6AA89A42ECA6909C2492C2193D14",
-                    "openid":"A44A6AA89A42ECA6909C2492C2193D14","uuid":"JA-1"}]
+                    "openid":"A44A6AA89A42ECA6909C2492C2193D14","uuid":"JA-1"}],
+      "login_info":{"ct":"NEW_CT","wt":"NEW_WT","user_id":"JA-1",
+                    "uin":2751275315,"openid":"74193457a-b8d058817457ae26_10200",
+                    "ctt":"CTT_VALUE","login_uuid":"JA-1","is_new_user":0,
+                    "refresh_ct_span":604800,"refresh_wt_span":1800}
     }}
     """
 

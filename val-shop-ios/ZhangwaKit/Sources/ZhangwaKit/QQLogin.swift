@@ -264,28 +264,38 @@ public final class QQLogin {
                                    dataPreview: nil)
         }
 
+        // ⚠️ login_by_wechat / login_by_qq 返回的是 data.login_info，
+        // 不是 refresh 那套的 data.ct_info。两者字段名一样，外层 key 不同。
+        // （依据 com/tencent/wglogin/authsuite/protocol/LoginResult.java）
         var session = ZhangwaSession()
         session.authType = .qq
         let root = (json["data"] as? [String: Any]) ?? json
-        if let info = root["ct_info"] as? [String: Any] {
-            session.ct = ZhangwaClient.stringValue(info["ct"]) ?? ""
-            session.tid = ZhangwaClient.stringValue(info["wt"]) ?? ""
-            session.userID = ZhangwaClient.stringValue(info["user_id"]) ?? ""
-            if let u = ZhangwaClient.intValue(info["uin"]) { session.uin = Int64(u) }
-        }
-        // Cookie 的 openid 用 bind_info 的（QQ openid），不是 ct_info.openid
-        if let binds = root["bind_info"] as? [[String: Any]],
+        let info = (root["login_info"] as? [String: Any])
+            ?? (root["ct_info"] as? [String: Any])
+            ?? root
+        session.ct = ZhangwaClient.stringValue(info["ct"]) ?? ""
+        session.tid = ZhangwaClient.stringValue(info["wt"]) ?? ""
+        session.userID = ZhangwaClient.stringValue(info["user_id"]) ?? ""
+        if let u = ZhangwaClient.intValue(info["uin"]) { session.uin = Int64(u) }
+
+        // Cookie 的 openid 取 bind_info 的（QQ openid），不是 login_info.openid
+        if let binds = (root["bind_info"] as? [[String: Any]])
+                        ?? (root["accounts"] as? [[String: Any]]),
            let mine = binds.first(where: { ZhangwaClient.stringValue($0["uuid"]) == session.userID })
                        ?? binds.first,
            let oid = ZhangwaClient.stringValue(mine["openid"]) {
             session.openID = oid
         }
-        // 兜底：万一没 bind_info，就用回调里的 openid（对 QQ 来说通常是对的）
+        // 兜底：万一没 bind_info，用回调里的 openid（对 QQ 来说通常是对的）
         if session.openID.isEmpty { session.openID = creds.openID }
+        session.accessToken = ZhangwaClient.stringValue(info["ctt"]) ?? ""
         session.ctUpdatedAt = Date().timeIntervalSince1970
 
         guard session.isValid else {
-            throw ZhangwaError.transport("登录响应里没有可用的登录态")
+            let keys = root.keys.sorted().joined(separator: ",")
+            let infoKeys = info.keys.sorted().joined(separator: ",")
+            throw ZhangwaError.transport(
+                "登录响应里没有可用的登录态。data=[\(keys)] info=[\(infoKeys)]")
         }
         return session
     }
