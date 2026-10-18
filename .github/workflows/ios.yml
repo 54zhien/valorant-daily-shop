@@ -1,4 +1,4 @@
-﻿name: Build IPA
+name: Build IPA
 
 # 出未签名 IPA，手机上用自签工具装。
 # 也可以在 Actions 页面手动触发（workflow_dispatch）。
@@ -57,12 +57,15 @@ jobs:
     name: 构建未签名 IPA
     needs: test
     runs-on: macos-26
+    permissions:
+      contents: write      # 下面要更新滚动 Release
 
     env:
       # 仓库 Settings → Secrets and variables → Actions → Variables 里可覆盖
       BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.zhangwashop' }}
       ZW_SHOP_PATH: ${{ vars.ZW_SHOP_PATH }}
       ZW_SHOP_BODY: ${{ vars.ZW_SHOP_BODY }}
+      IPA_PATH: val-shop-ios/ZhangwaShop-unsigned.ipa
 
     steps:
       - uses: actions/checkout@v5
@@ -154,12 +157,41 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
 
       - name: 上传 IPA
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ZhangwaShop-unsigned-ipa
           path: val-shop-ios/ZhangwaShop-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+
+      # 手机上直接点链接下载 .ipa，不用登录 GitHub 翻 Artifacts（那边下下来是 zip，iOS 还得解压）
+      - name: 更新滚动 Release（可直接下载的永久链接）
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="latest"
+          TITLE="最新构建 $(date -u '+%Y-%m-%d %H:%M') UTC"
+          NOTES=$(cat <<EOF
+          未签名 IPA，用自签工具（ESign / 全能签 / AltStore）签名后安装。
+
+          - Bundle ID: \`${BUNDLE_ID}\`
+          - 商店接口路径: \`${ZW_SHOP_PATH:-（空，装好后在 App 里填）}\`
+          - 提交: ${GITHUB_SHA:0:7}
+
+          直链：\`https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ZhangwaShop-unsigned.ipa\`
+          EOF
+          )
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$IPA_PATH" --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+            echo "已更新 release/$TAG"
+          else
+            gh release create "$TAG" "$IPA_PATH" --title "$TITLE" --notes "$NOTES" --prerelease
+            echo "已创建 release/$TAG"
+          fi
 
       - name: 构建摘要
         if: always()
@@ -169,9 +201,10 @@ jobs:
             echo ""
             echo "- Bundle ID: \`${BUNDLE_ID}\`"
             echo "- 商店接口路径: \`${ZW_SHOP_PATH:-（空，装好后在 App 里填）}\`"
-            echo "- IPA: 见下方 Artifacts"
             echo ""
-            echo "> 未签名 IPA，用手机上的自签工具（ESign / 全能签 / AltStore 等）签名后安装。"
+            echo "**手机直接下：** https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ZhangwaShop-unsigned.ipa"
+            echo ""
+            echo "> 未签名 IPA，用手机上的自签工具签名后安装。"
           } >> "$GITHUB_STEP_SUMMARY"
 
 # 说明
