@@ -284,14 +284,53 @@ public final class ZhangwaClient {
         var s = session
         if let v = info["ct"] as? String, !v.isEmpty { s.ct = v }
         if let v = info["wt"] as? String, !v.isEmpty { s.tid = v }
-        if let v = info["openid"] as? String, !v.isEmpty { s.openID = v }
         if let v = info["user_id"] as? String, !v.isEmpty { s.userID = v }
         if let u = Self.intValue(info["uin"]) { s.uin = Int64(u) }
-        if let span = Self.intValue(info["refresh_ct_span"]) {
-            s.expiresAt = Date().timeIntervalSince1970 + Double(span)
+        // 记下这次续期的时间 —— ct 有效期 7 天，靠这个滚动续期
+        s.ctUpdatedAt = Date().timeIntervalSince1970
+
+        // ⚠️ 千万别把 ct_info.openid 写进 Cookie 的 openid！
+        //
+        // ct_info.openid 是**掌瓦自己的 openid**（形如 `74193457a-…_10200`，
+        // 尾巴是 login_mappid），而 Cookie 要的是 **QQ 的 openid**
+        // （形如 `A44A6AA89A42ECA6909C2492C2193D14`）。两个完全不同。
+        // 写错了这一行，Cookie 立刻失效 —— 而且报的是 999999，
+        // 看起来像「票据过期」，极难查。
+        //
+        // 正确的来源是 ct_info 同一层的 `bind_info`：
+        //   [{"uin":"A44A6AA8…","openid":"A44A6AA8…","uuid":"JA-3095d6…"}]
+        // 取 uuid == userID 的那条。
+        let bindList = (root["bind_info"] as? [Any])
+            ?? (((root["data"] as? [String: Any])?["bind_info"]) as? [Any])
+        if let binds = bindList?.compactMap({ $0 as? [String: Any] }) {
+            if let mine = binds.first(where: { ($0["uuid"] as? String) == s.userID })
+                ?? binds.first,
+               let oid = Self.stringValue(mine["openid"]), !oid.isEmpty {
+                s.openID = oid
+            }
         }
+
         updateSession(s)
         return true
+    }
+
+    /// 要不要续 ct。
+    ///
+    /// ct 有效期 7 天（实测 `refresh_ct_span = 604800`），
+    /// 但在过期前用旧 ct 换一张新的就能一直滚下去 —— 抓一次包够用一辈子。
+    public var needsClientTicketRenewal: Bool {
+        guard !session.ct.isEmpty, !session.userID.isEmpty else { return false }
+        // 不知道是什么时候拿的，就先续一次
+        guard session.ctUpdatedAt > 0 else { return true }
+        let age = Date().timeIntervalSince1970 - session.ctUpdatedAt
+        return age > (ZhangwaSession.ctLifetime - ZhangwaSession.ctRenewMargin)
+    }
+
+    /// 该续就续，不该续就什么都不做。失败不抛错（下次自然还会试）。
+    @discardableResult
+    public func ensureFreshClientTicket() async -> Bool {
+        guard needsClientTicketRenewal else { return true }
+        return (try? await refreshClientTicket()) ?? false
     }
 
     /// `POST /go/auth/get_web_ticket` → 新的 wt，写回 `tid`

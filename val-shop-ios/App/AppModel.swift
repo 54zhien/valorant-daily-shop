@@ -93,6 +93,18 @@ final class AppModel {
 
     var hasSession: Bool { session.isValid }
 
+    /// ct 还有多久过期（7 天窗口）。nil = 不知道。
+    var ctExpiryText: String {
+        guard !session.ct.isEmpty else { return "无 ct —— 无法自刷新" }
+        guard session.ctUpdatedAt > 0 else { return "未知（导入时没记时间）" }
+        let left = session.ctUpdatedAt + ZhangwaSession.ctLifetime
+            - Date().timeIntervalSince1970
+        if left <= 0 { return "已过期，需要重新抓包" }
+        let days = Int(left) / 86_400
+        let hours = (Int(left) % 86_400) / 3_600
+        return days > 0 ? "还有 \(days) 天" : "还有 \(hours) 小时"
+    }
+
     var accountLabel: String {
         guard session.isValid else { return "未登录" }
         let id = session.userID.isEmpty ? "?" : session.userID
@@ -348,6 +360,19 @@ final class AppModel {
     func loadStore() async {
         state = .loading
         flipped = [false, false, false, false]
+
+        // ct 有效期 7 天，但过期前用旧的换一张新的就能一直滚下去。
+        // 顺手在这里续一次，用户就不需要关心「什么时候该重新抓包」。
+        if client.needsClientTicketRenewal {
+            push("ct 快到 7 天了，自动续期中…")
+            if await client.ensureFreshClientTicket() {
+                applySession(client.session)
+                push("  ✅ ct 已续期，又是 7 天")
+            } else {
+                push("  ⚠️ 续期失败（可能 ct 已经过期），需要重新抓一次包")
+            }
+        }
+
         do {
             let raw = try await client.fetchStore()
             let snap = StoreNormalizer.normalize(raw)

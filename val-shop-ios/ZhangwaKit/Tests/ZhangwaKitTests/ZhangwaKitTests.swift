@@ -440,6 +440,77 @@ struct ZhangwaKitTests {
         #expect(hits.contains(ZhangwaClient.hostVal))
     }
 
+    // MARK: ct 滚动续期
+
+    @Test("refresh_client_ticket 会拿到新 ct，并把 ctUpdatedAt 记上")
+    func clientTicketRenewalRecordsTimestamp() async throws {
+        var s0 = qqSession()
+        s0.ctUpdatedAt = 0
+        let c = ZhangwaClient(session: s0)
+        #expect(c.needsClientTicketRenewal, "没记时间就该续")
+
+        c.transportOverride = { [self] req in
+            #expect(req.url?.path == "/go/auth/refresh_client_ticket")
+            // 真实响应的结构（含 bind_info）
+            return json(#"""
+            {"result":0,"msg":"","data":{
+              "ct_info":{"ct":"NEW_CT_LONG","wt":"NEW_WT","result":0,
+                         "user_id":"JA-1","uin":2751275315,
+                         "openid":"74193457a-b8d058817457ae26_10200",
+                         "refresh_ct_span":604800,"refresh_wt_span":1800},
+              "bind_info":[{"uin":"A44A6AA89A42ECA6909C2492C2193D14",
+                            "openid":"A44A6AA89A42ECA6909C2492C2193D14",
+                            "uuid":"JA-1"}]
+            }}
+            """#)
+        }
+
+        let ok = try await c.refreshClientTicket()
+        #expect(ok)
+        #expect(c.session.ct == "NEW_CT_LONG")
+        #expect(c.session.tid == "NEW_WT")
+
+        // ⚠️ 最关键的一条：Cookie 的 openid 必须来自 bind_info，
+        //    不能是 ct_info.openid（那是掌瓦自己的 openid，写进去 Cookie 就废了）
+        #expect(c.session.openID == "A44A6AA89A42ECA6909C2492C2193D14")
+        #expect(c.session.openID != "74193457a-b8d058817457ae26_10200")
+        #expect(c.session.cookieHeader.contains("openid=A44A6AA89A42ECA6909C2492C2193D14"))
+
+        #expect(c.session.ctUpdatedAt > 0)
+        #expect(!c.needsClientTicketRenewal, "刚续过就不该再续")
+    }
+
+    @Test("ct 快到 7 天才续")
+    func ctRenewalTiming() {
+        let now = Date().timeIntervalSince1970
+
+        func needs(afterDays days: Double, ct: String = "CT") -> Bool {
+            var s = qqSession()
+            s.ct = ct
+            s.ctUpdatedAt = now - days * 86_400
+            return ZhangwaClient(session: s).needsClientTicketRenewal
+        }
+
+        #expect(!needs(afterDays: 0))     // 刚拿到
+        #expect(!needs(afterDays: 5))     // 5 天，还没到
+        #expect(needs(afterDays: 6.5))    // 进了续期窗口（7 天 - 1 天余量）
+        #expect(needs(afterDays: 8))      // 已经过期
+
+        // 没有 ct 就续不了 —— 不该被判成「该续」（续也续不动）
+        #expect(!needs(afterDays: 8, ct: ""))
+
+        // 但「有 ct 却没记时间」要判成该续（比如用户直接粘的 Cookie）
+        var noStamp = qqSession()
+        noStamp.ctUpdatedAt = 0
+        #expect(ZhangwaClient(session: noStamp).needsClientTicketRenewal)
+    }
+
+    @Test("实测的有效期常量")
+    func ticketLifetimes() {
+        #expect(ZhangwaSession.ctLifetime == 604_800)   // 7 天
+        #expect(ZhangwaSession.wtLifetime == 1_800)     // 30 分钟
+    }
+
     // MARK: - 抓包导入
 
     @Test("从 ndjson 抓包日志里提取会话与接口清单")

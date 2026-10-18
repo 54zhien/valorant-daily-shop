@@ -54,6 +54,10 @@ struct SettingsView: View {
                 Text(model.session.ct.isEmpty ? "无" : "有")
                     .foregroundStyle(model.session.ct.isEmpty ? .orange : .green)
             }
+            LabeledContent("ct 有效期") {
+                Text(model.ctExpiryText)
+                    .foregroundStyle(model.session.ct.isEmpty ? .orange : .secondary)
+            }
             LabeledContent("tid（= wt）") {
                 Text(model.session.tid.isEmpty ? "无" : "有")
                     .foregroundStyle(model.session.tid.isEmpty ? .orange : .green)

@@ -1,4 +1,4 @@
-﻿import Foundation
+import Foundation
 
 // MARK: - SSO 类型
 
@@ -59,6 +59,12 @@ public struct ZhangwaSession: Codable, Equatable, Sendable {
     public var loginUUID: String = ""
     /// access_token 过期时间戳（秒）；0 = 未知
     public var expiresAt: TimeInterval = 0
+    /// 这份 `ct` 是什么时候拿到的（unix 秒）。0 = 未知。
+    ///
+    /// 为什么要记这个：`ct` 的有效期是 7 天（抓包实测 `refresh_ct_span = 604800`），
+    /// 但只要在过期前用旧 ct 换一张新的，就能**一直滚动续期** ——
+    /// 也就是说抓一次包就够用一辈子，不用反复抓。
+    public var ctUpdatedAt: TimeInterval = 0
     public var extraCookies: [String: String] = [:]
     /// 抓到原始 Cookie 时原样保存，保证零损耗回放
     public var rawCookieHeader: String = ""
@@ -70,6 +76,13 @@ public struct ZhangwaSession: Codable, Equatable, Sendable {
     public static let appIDQQ = "102061775"          // meta-data: openqq_appid
     public static let appIDWX = "wxcbb49f1f39656c2a" // meta-data: wx_appid
     public static let mappid = 10200                 // meta-data: login_mappid
+
+    /// ct 有效期：7 天（`refresh_ct_span = 604800`）
+    public static let ctLifetime: TimeInterval = 604_800
+    /// wt 有效期：30 分钟（`refresh_wt_span = 1800`）—— 过期就 999999
+    public static let wtLifetime: TimeInterval = 1_800
+    /// 提前一天续 ct，别卡在边界上
+    public static let ctRenewMargin: TimeInterval = 86_400
 
     public var accountType: Int { authType.accountType }
 
