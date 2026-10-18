@@ -1,4 +1,4 @@
-name: Build IPA
+﻿name: Build IPA
 
 # 出未签名 IPA，手机上用自签工具装。
 # 也可以在 Actions 页面手动触发（workflow_dispatch）。
@@ -30,7 +30,7 @@ jobs:
     name: ZhangwaKit 单元测试
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 选用最新的 Xcode 26
         run: |
@@ -65,7 +65,7 @@ jobs:
       ZW_SHOP_BODY: ${{ vars.ZW_SHOP_BODY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 选用最新的 Xcode 26
         run: |
@@ -154,7 +154,7 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
 
       - name: 上传 IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ZhangwaShop-unsigned-ipa
           path: val-shop-ios/ZhangwaShop-unsigned.ipa

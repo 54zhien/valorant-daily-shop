@@ -69,7 +69,9 @@ extension View {
     }
 
     /// 让玻璃参与"变形"动画（配合 GlassEffectContainer 使用）
-    func zwMorphID(_ id: some Hashable, in namespace: Namespace.ID) -> some View {
+    /// 注意必须带上 `Sendable` —— `glassEffectID` 的签名是 `some Hashable & Sendable`，
+    /// Swift 6 严格并发下光写 `some Hashable` 会报错。
+    func zwMorphID(_ id: some Hashable & Sendable, in namespace: Namespace.ID) -> some View {
         glassEffectID(id, in: namespace)
     }
 
@@ -177,4 +179,13 @@ extension Color {
     static func blend(_ a: Color, _ b: Color, by amount: Double) -> Color {
         a.mix(with: b, by: amount)
     }
+}
+
+// Color 只在「明确要 Color」的地方够用（tint(_:)、zwGlassChip(tint:) 之类）。
+// `.foregroundStyle(.zwMint)` 这种写法要求成员挂在 ShapeStyle 上 ——
+// SwiftUI 内置的 .blue / .red 就是这么声明的，这里照抄同一套机制。
+extension ShapeStyle where Self == Color {
+    static var zwInk: Color { Color.zwInk }
+    static var zwAccent: Color { Color.zwAccent }
+    static var zwMint: Color { Color.zwMint }
 }
