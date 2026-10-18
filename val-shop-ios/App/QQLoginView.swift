@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import WebKit
 import ZhangwaKit
 
@@ -137,6 +137,12 @@ struct QQLoginView: View {
 
 /// 只做两件事：加载 URL，拦截 auth:// 回调。
 struct QQWebView: UIViewRepresentable {
+    /// 伪装成 Android。理由见 makeUIView 里那段注释 ——
+    /// 不这么做的话 QQ 会把登录页塞进 iframe，然后 Cookie 被 iOS 拦掉。
+    static let androidUA = "Mozilla/5.0 (Linux; Android 12; SM-S9210) AppleWebKit/537.36 "
+                         + "(KHTML, like Gecko) Version/4.0 Chrome/110.0.5481.154 "
+                         + "Mobile Safari/537.36"
+
     let url: URL
     /// 变了就重新加载（点"刷新"时）
     let reloadToken: UUID
@@ -152,13 +158,33 @@ struct QQWebView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         // QQ 的登录页会开自己的小窗做校验，给它留个口子，否则可能白屏
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
-        // 用移动端 UA —— 服务端会据此决定渲染哪套页面
-        config.applicationNameForUserAgent = "Version/4.0 Chrome/110.0 Mobile Safari/537.36"
 
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = false
         web.scrollView.bounces = false
+
+        // ★★★ 必须伪装成 Android UA —— 这不是为了骗服务端，是为了绕开
+        //     QQ 登录页里的这一段 iOS 特判：
+        //
+        //         if (isIos()) {
+        //             if (inMQQ()) { window.open(src, '_self') }
+        //             else { document.write('<iframe src="', src, '"></iframe>') }
+        //         } else {
+        //             location.replace(src)
+        //         }
+        //
+        //     iOS + 不在 QQ 里 -> 登录页被塞进 <iframe>，
+        //     xui.ptlogin2.qq.com 就成了**第三方域**，
+        //     而 iOS 的 ITP 会拦掉它的 Cookie -> ptlogin2 会话建不起来
+        //     -> 二维码画得出来但一扫码就"失效"。
+        //
+        //     掌瓦在 Android 上走 location.replace，顶层导航没这问题，
+        //     所以这个坑只有 iOS 版会踩。
+        //
+        //     设 customUserAgent（而不是只设 URLRequest 的 header）——
+        //     后者只作用于首个请求，页面里 navigator.userAgent 读到的还是 iOS。
+        web.customUserAgent = QQWebView.androidUA
 
         context.coordinator.web = web
         context.coordinator.load(url)
@@ -190,11 +216,9 @@ struct QQWebView: UIViewRepresentable {
 
         func load(_ url: URL) {
             lastToken = nil
-            var req = URLRequest(url: url)
-            req.setValue("Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 "
-                         + "(KHTML, like Gecko) Version/4.0 Chrome/110.0 Mobile Safari/537.36",
-                         forHTTPHeaderField: "User-Agent")
-            web?.load(req)
+            // customUserAgent 已经设过了，这里不用再改 header。
+            // 两处都设反而容易不一致，留一处就好。
+            web?.load(URLRequest(url: url))
         }
 
         /// ★ 关键：在这里把 auth:// 回调拦下来。
