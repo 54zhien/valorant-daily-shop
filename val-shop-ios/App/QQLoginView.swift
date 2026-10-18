@@ -28,6 +28,9 @@ struct QQLoginView: View {
     @State private var stage: QQLogin.Stage = .idle
     @State private var url: URL?
     @State private var reloadToken = UUID()
+    /// 诊断信息（导航 + 页面探针）。二维码失效到底是服务端判的还是我们这边的问题，
+    /// 看这个就能分辨 —— 别再靠猜。
+    @State private var diag: [String] = []
 
     var body: some View {
         NavigationStack {
@@ -45,6 +48,17 @@ struct QQLoginView: View {
                               },
                               onFailed: { msg in
                                   stage = .failed(msg)
+                              },
+                              onNavigate: { target, isMain in
+                                  // 换过一次 UA 之后，这里应该看到
+                                  // xui.ptlogin2.qq.com 是**主框架**。
+                                  // 如果它出现在子框架里，说明 iOS 分支还是走了 iframe。
+                                  diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.host ?? "?")", at: 0)
+                                  if diag.count > 12 { diag.removeLast() }
+                              },
+                              onProbe: { info in
+                                  diag.insert("QR \(info)", at: 0)
+                                  if diag.count > 12 { diag.removeLast() }
                               })
                     .ignoresSafeArea(edges: .bottom)
                 } else {
@@ -53,6 +67,7 @@ struct QQLoginView: View {
                 }
 
                 statusBar
+                if !diag.isEmpty { diagPanel }
             }
             .background(ZWBrandBackdrop())
             .navigationTitle("QQ 扫码登录")
@@ -75,6 +90,41 @@ struct QQLoginView: View {
             }
         }
         .onAppear { wire() }
+        // QQ 的二维码有 TTL（约两三分钟）。页面自带 autorefresh=1，
+        // 但不保证生效，所以自己也兜一层：还在等扫码就定期换一张。
+        .task(id: reloadToken) {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 90_000_000_000)   // 90 秒
+                if Task.isCancelled { break }
+                if stage == .waiting || stage == .loading {
+                    diag.insert("⟳ 自动换码（90 秒到）", at: 0)
+                    reloadToken = UUID()
+                    stage = .loading
+                } else {
+                    break
+                }
+            }
+        }
+    }
+
+    /// 诊断面板 —— 出问题时让用户整块截图发过来就够了
+    private var diagPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(12)
+        }
+        .frame(maxHeight: 132)
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private var statusBar: some View {
@@ -149,9 +199,14 @@ struct QQWebView: UIViewRepresentable {
     let onCallback: (URL) -> Void
     let onLoaded: () -> Void
     let onFailed: (String) -> Void
+    /// 每次导航（URL + 是不是主框架），用来诊断
+    var onNavigate: ((URL, Bool) -> Void)?
+    /// 页面加载完注入 JS 探到的信息
+    var onProbe: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onCallback: onCallback, onLoaded: onLoaded, onFailed: onFailed)
+        Coordinator(onCallback: onCallback, onLoaded: onLoaded,
+                    onFailed: onFailed, onNavigate: onNavigate, onProbe: onProbe)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -202,16 +257,22 @@ struct QQWebView: UIViewRepresentable {
         private let onCallback: (URL) -> Void
         private let onLoaded: () -> Void
         private let onFailed: (String) -> Void
+        let onNavigate: ((URL, Bool) -> Void)?
+        let onProbe: ((String) -> Void)?
 
         weak var web: WKWebView?
         var lastToken: UUID?
 
         init(onCallback: @escaping (URL) -> Void,
              onLoaded: @escaping () -> Void,
-             onFailed: @escaping (String) -> Void) {
+             onFailed: @escaping (String) -> Void,
+             onNavigate: ((URL, Bool) -> Void)?,
+             onProbe: ((String) -> Void)?) {
             self.onCallback = onCallback
             self.onLoaded = onLoaded
             self.onFailed = onFailed
+            self.onNavigate = onNavigate
+            self.onProbe = onProbe
         }
 
         func load(_ url: URL) {
@@ -236,11 +297,49 @@ struct QQWebView: UIViewRepresentable {
                 onCallback(target)
                 return
             }
+            onNavigate?(target, action.targetFrame?.isMainFrame ?? false)
             decisionHandler(.allow)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             onLoaded()
+            probePage(webView)
+        }
+
+        /// 页面加载完，注入 JS 看看二维码到底出没出来。
+        ///
+        /// 为什么要这个：光看截图没法判断「二维码失效」是**服务端给的**还是
+        /// **我们这边渲染/会话出的问题**。把 qrimg.src 和提示文字读出来就能分辨：
+        ///   · qrimg.src 为空      -> 二维码根本没拉到
+        ///   · src 有但带着旧时间  -> 缓存问题
+        ///   · tips 里有"失效"     -> 服务端确实判定过期了
+        func probePage(_ webView: WKWebView) {
+            let js = """
+            (function () {
+              try {
+                var img = document.getElementById('qrimg');
+                var tips = document.getElementById('qrtips');
+                var inv = document.getElementById('qr_invalid');
+                return JSON.stringify({
+                  url: location.href,
+                  hasImg: !!img,
+                  imgSrc: img ? (img.src || '').slice(0, 200) : '',
+                  imgW: img ? img.naturalWidth : 0,
+                  tips: tips ? tips.innerText.replace(/\\n/g, ' ') : '',
+                  invalidShown: inv ? (getComputedStyle(inv).display !== 'none') : null,
+                  ua: navigator.userAgent.slice(0, 80),
+                  cookieOK: document.cookie.length > 0
+                });
+              } catch (e) { return 'ERR:' + e; }
+            })()
+            """
+            webView.evaluateJavaScript(js) { value, error in
+                if let s = value as? String {
+                    self.onProbe?(s)
+                } else if let e = error {
+                    self.onProbe?("probe 失败: \(e.localizedDescription)")
+                }
+            }
         }
 
         func webView(_ webView: WKWebView,
