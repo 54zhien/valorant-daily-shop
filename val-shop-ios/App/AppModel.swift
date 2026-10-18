@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import Observation
 import ZhangwaKit
 
@@ -89,6 +89,22 @@ final class AppModel {
         if let data = try? JSONEncoder().encode(new) {
             UserDefaults.standard.set(data, forKey: Self.kSession)
         }
+    }
+
+    /// 扫码登录成功后接手会话。
+    ///
+    /// 扫码拿到的是**全新的 ct + wt**（和抓包拿到的是同一个东西），
+    /// 所以不用做任何特殊处理 —— 交给现有的 ct 滚动续期机制养着就行。
+    /// 扫码登录界面开不开。放在 model 上而不是 SettingsView 的 @State —— 
+    /// 设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet（iOS 上不稳）。
+    /// 挂到根视图就永远只有一层。
+    var showQRLogin = false
+
+    func adopt(_ s: ZhangwaSession) {
+        client.updateSession(s)
+        applySession(s)
+        push("扫码登录成功：userID=\(s.userID.isEmpty ? "?" : s.userID)"
+             + "，ct \(s.ct.isEmpty ? "无" : "有")，有效期 7 天（会自动续）")
     }
 
     /// 启动 / 每次回到前台时调一次。

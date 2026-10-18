@@ -26,7 +26,10 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TabView {
+        // @Bindable 必须放在 body 里当局部变量用 —— 写成存储属性是编译不过的
+        @Bindable var model = model
+
+        return TabView {
             Tab("商店", systemImage: "bag.fill") {
                 ShopView()
             }
@@ -40,6 +43,13 @@ struct RootView: View {
         // 向下滚动时 TabBar 收起，把屏幕让给内容
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(.zwAccent)
+        // ★ 扫码登录挂在这儿（**根视图**），不是挂在设置页里。
+        //   设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet —— iOS 上不稳，
+        //   之前 .fileImporter 就是栽在这上面。挂根上永远只有一层。
+        .sheet(isPresented: $model.showQRLogin) {
+            QRLoginView()
+                .environment(model)
+        }
         // ★ 每次回到前台都续一次 ct。
         //
         // 这是「脱离电脑」的关键：ct 活 7 天，靠它自己滚下去。

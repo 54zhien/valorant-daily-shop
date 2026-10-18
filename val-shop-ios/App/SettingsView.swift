@@ -132,6 +132,16 @@ struct SettingsView: View {
 
     private var importSection: some View {
         Section {
+            // ★ 给普通人的入口：打开 → 出二维码 → 微信扫一下 → 完事
+            Button {
+                model.showQRLogin = true
+            } label: {
+                Label("扫码登录（推荐）", systemImage: "qrcode")
+                    .font(.body.weight(.semibold))
+            }
+            .buttonStyle(.glassProminent)
+            .tint(.zwAccent)
+
             Button {
                 Task { await model.importFromAppFolder() }
             } label: {
