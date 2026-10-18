@@ -19,6 +19,7 @@ struct SettingsView: View {
             Form {
                 statusSection
                 importSection
+                cookieSection
                 shopSection
                 maintenanceSection
                 aboutSection
@@ -121,6 +122,45 @@ struct SettingsView: View {
             Text("导入抓包")
         } footer: {
             Text("AirDrop 过来的文件存到「文件」App 的「我的 iPhone → 每日商店」，再点「扫描 App 文件夹」，一次把两个文件都读进来。\n支持 mval_session.json（推荐，含 ct）、mval_capture.log、mitmproxy 的 mval-*.jsonl。")
+        }
+    }
+
+    // MARK: 直接粘贴 Cookie
+    //
+    // 不想抓包传文件时的快速通道：从任何地方（浏览器 devtools / mitmproxy 的
+    // headers / 已有的抓包记录）复制整行 Cookie 贴进来就行。
+    //
+    // 代价：Cookie 里没有 ct，所以**不能自刷新**，tid 过期就得重新贴。
+
+    private var cookieSection: some View {
+        Section {
+            TextEditor(text: $cookieDraft)
+                .font(.caption.monospaced())
+                .frame(minHeight: 88)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .overlay(alignment: .topLeading) {
+                    if cookieDraft.isEmpty {
+                        Text("clientType=9; acctype=qc; uin=o10001; appid=102061775; openid=…; access_token=…; userId=u-…; accountType=5; tid=…")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 8)
+                            .padding(.horizontal, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+
+            Button {
+                model.saveCookie(cookieDraft)
+                cookieDraft = ""
+            } label: {
+                Label("保存这份 Cookie", systemImage: "checkmark.circle")
+            }
+            .disabled(cookieDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } header: {
+            Text("直接粘贴 Cookie（快速通道）")
+        } footer: {
+            Text("不用传文件的方式。但 Cookie 里没有 ct —— 贴上就能读，tid 一过期就得重贴。想一劳永逸还是走上面的抓包导入。")
         }
     }
 
