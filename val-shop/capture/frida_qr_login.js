@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 抓 qrconnect 的 signature
  * ============================================================================
  *
@@ -92,6 +92,26 @@ Java.perform(function () {
                     var v = args[i];
                     write('    arg' + i + ' (len=' + (v ? String(v).length : 0) + ') = ' + v);
                 }
+
+                // ★ 关键：打出调用栈。
+                // 静态分析找不到 auth() 的调用方（jadx 在差异包外一个引用都没有），
+                // 但运行时一定知道是谁调的。栈里那个「非 a.a / 非 Java 框架」的帧
+                // 就是算 signature 的地方。
+                try {
+                    var Throwable = Java.use('java.lang.Throwable');
+                    var Log = Java.use('android.util.Log');
+                    var stack = Log.getStackTraceString(Throwable.$new());
+                    write('    ---- 调用栈 ----');
+                    stack.split('\n').slice(0, 30).forEach(function (line) {
+                        if (line.trim().length > 0) {
+                            write('      ' + line.trim());
+                        }
+                    });
+                    write('    ----------------');
+                } catch (e) {
+                    write('    ⚠️ 打栈失败: ' + e);
+                }
+
                 return ov.apply(this, args);
             };
             hooked.auth = true;
