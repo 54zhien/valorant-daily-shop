@@ -2,7 +2,15 @@ import SwiftUI
 
 @main
 struct ZhangwaShopApp: App {
-    @State private var model = AppModel()
+    @State private var model: AppModel
+
+    init() {
+        let m = AppModel()
+        _model = State(initialValue: m)
+        // BGTaskScheduler 的注册必须在启动完成前做完，App.init() 是最晚的合适位置。
+        // （用 AppDelegate 也行，但这里没必要为了一行注册引入一个 delegate）
+        BackgroundRenewal.register(model: m)
+    }
 
     var body: some Scene {
         WindowGroup {

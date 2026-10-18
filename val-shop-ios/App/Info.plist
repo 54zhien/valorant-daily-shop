@@ -30,6 +30,21 @@
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<!--
+	  后台续期。ct 活 7 天，靠「打开 App 时自动续」能一直滚下去，
+	  但前提是你得打开 App。BGAppRefreshTask 让系统隔一段时间叫醒我们一次，
+	  这样即使好几天没开 App，登录态也不会断。
+
+	  两条都留着：打开时一定会续（主路径），后台刷新是兜底。
+	-->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.zhien.zhangwashop.renew</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
