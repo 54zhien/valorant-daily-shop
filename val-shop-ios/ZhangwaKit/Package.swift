@@ -27,6 +27,8 @@ let package = Package(
             name: "ZhangwaKitTests",
             dependencies: ["ZhangwaKit"],
             path: "Tests/ZhangwaKitTests",
+            // 真实抓包响应当夹具，用 Bundle.module 读
+            resources: [.process("Fixtures")],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
             ]

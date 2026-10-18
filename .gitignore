@@ -47,3 +47,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 抓包分析产物（含真实登录态）
+val-shop/capture/_dump/
+val-shop/capture/frida-server-*

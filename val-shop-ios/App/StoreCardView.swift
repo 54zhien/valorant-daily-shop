@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import ZhangwaKit
 
 /// 一张翻牌卡。
@@ -23,7 +23,7 @@ struct StoreCardView: View {
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(0.76, contentMode: .fit)
-        .zwGlassCard(tint: isFlipped ? item.rarity.color.opacity(0.30) : nil,
+        .zwGlassCard(tint: isFlipped ? item.accentColor.opacity(0.30) : nil,
                      interactive: true)
         .zwMorphID(morphID, in: namespace)
         .rotation3DEffect(.degrees(isFlipped ? 180 : 0),
@@ -40,7 +40,7 @@ struct StoreCardView: View {
         guard isFlipped else { return "未翻开的商店卡" }
         let price = item.price.map { "\($0) VP" } ?? "价格未知"
         let owned = item.owned ? "，已拥有" : ""
-        return "\(item.name)，\(item.weaponName)，\(price)，\(item.rarity.cnLabel)\(owned)"
+        return "\(item.name)，\(item.weaponName)，\(price)，\(item.qualityText)\(owned)"
     }
 
     // MARK: 卡背
@@ -65,7 +65,7 @@ struct StoreCardView: View {
     private var front: some View {
         VStack(spacing: 0) {
             ZStack {
-                RadialGradient(colors: [item.rarity.color.opacity(0.35), .clear],
+                RadialGradient(colors: [item.accentColor.opacity(0.35), .clear],
                                center: UnitPoint(x: 0.5, y: 0.4),
                                startRadius: 2, endRadius: 140)
                 thumbnail
@@ -119,7 +119,7 @@ struct StoreCardView: View {
                 .lineLimit(2)
                 .frame(height: 34, alignment: .topLeading)
 
-            Text(item.weaponName)
+            Text(item.weaponName.isEmpty ? (item.likeText ?? "") : item.weaponName)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -132,14 +132,14 @@ struct StoreCardView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                Text(item.rarity.label)
+                Text(item.qualityText)
                     .font(.system(size: 9, weight: .heavy))
-                    .foregroundStyle(item.rarity.color)
+                    .foregroundStyle(item.accentColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .overlay(
                         RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .stroke(item.rarity.color, lineWidth: 1)
+                            .stroke(item.accentColor, lineWidth: 1)
                     )
             }
             .padding(.top, 2)

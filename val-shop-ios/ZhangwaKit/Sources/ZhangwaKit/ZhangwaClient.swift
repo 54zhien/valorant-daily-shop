@@ -47,32 +47,29 @@ public final class ZhangwaClient {
     public var userAgent: String
     public var gameZone: String
 
-    /// 商店接口路径。抓包后填这里（或写进 Settings，持久化到 UserDefaults）。
-    public var shopPath: String?
-    public var shopBody: [String: Any]?
-    public var shopMethod: String = "auto"
-
-    /// 抓不到路径时可以先跑一遍探测。
+    /// 每日商店的**真实接口**（2026-10 抓包实测确认）。
     ///
-    /// 第一名是从反编译代码里直接读出来的，不是猜的：
-    ///   `com/tencent/zone/main/ZoneMallHomeFragment.java:82`
-    ///   → `@RouteInfo("valpage://mobile_store_main")`（掌瓦的商城页）
-    ///   → `getDefaultTabSrcUrl()` 返回 `/go/zone/v3/channel?zone=shop&disableAlgo=$DISABLEALGO$`
-    /// `$DISABLEALGO$` 在 `module_information/data/d.java` 里替换成 "0"/"1"，默认给 0。
+    /// `POST /go/mlol_store/agame/user_store`，body 就是 `{}`。
+    /// 响应里 `data[]` 的每个面板有 `key`（`dailystore` / `kingdomstore`）、
+    /// `title`（"每日商店"）、`time`（剩余秒）、`end_ts`、`list[]`（商品）。
+    ///
+    /// 这个路径是从 RN bundle `WelFareStrategyMain.jsbundle` 的字符串表里挖出来的，
+    /// 该文件里同时还有 `/go/mlol_store/agame/flip_goods_card`（翻牌）、
+    /// `/go/mlol_store/agame/kingdom_store`、`/go/mlol_store/agame/get_vct_skin_list`。
+    public static let dailyStorePath = "/go/mlol_store/agame/user_store"
+
+    /// 商店接口路径。默认就是实测出来的那个。
+    public var shopPath: String? = ZhangwaClient.dailyStorePath
+    public var shopBody: [String: Any]? = [:]
+    public var shopMethod: String = "POST"
+
+    /// 探测用的候选（第一个是实测确认的）
     public var shopCandidates: [String] = [
+        ZhangwaClient.dailyStorePath,
+        "/go/mlol_store/agame/kingdom_store",
+        "/go/mlol_store/agame/flip_goods_card",
         "/go/zone/v3/channel?zone=shop&disableAlgo=0",
-        "/go/zone/v3/channel?zone=mall&disableAlgo=0",
-        "/go/zone/v3/channel?zone=val_shop&disableAlgo=0",
         "/go/agame/store/storefront",
-        "/go/agame/store/daily",
-        "/go/agame/shop/storefront",
-        "/go/agame/shop/daily",
-        "/go/agame/asset/storefront",
-        "/go/agame/asset/shop",
-        "/go/mval_store/agame/storefront",
-        "/go/mlol_store/agame/storefront",
-        "/go/val_store/storefront",
-        "/go/val_shop/storefront",
     ]
 
     /// 探测时依次尝试的域名

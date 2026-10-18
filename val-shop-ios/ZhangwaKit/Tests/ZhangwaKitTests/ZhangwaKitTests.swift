@@ -203,6 +203,7 @@ struct ZhangwaKitTests {
     @Test("没配商店路径时给出可读提示")
     func shopNotConfigured() async {
         let c = ZhangwaClient(session: qqSession())
+        c.shopPath = nil          // 现在默认指向每日商店，要显式清掉来测这个分支
         do {
             _ = try await c.fetchStore()
             Issue.record("应当抛 ZhangwaError")
@@ -213,7 +214,66 @@ struct ZhangwaKitTests {
         }
     }
 
-    // MARK: - 商店归一化
+    // MARK: 真实数据（2026-10 抓包）
+
+    /// 用真实抓包响应跑一遍 —— 这是最关键的一个测试。
+    /// 夹具：POST /go/mlol_store/agame/user_store  body={}  的真实响应
+    @Test("真实抓包响应能解析出每日商店的 4 件商品")
+    func normalizeRealDailyStore() throws {
+        let url = Bundle.module.url(forResource: "daily_store_real", withExtension: "json")
+        let file = try #require(url, "找不到 Fixtures/daily_store_real.json")
+        let raw = try JSONSerialization.jsonObject(with: Data(contentsOf: file))
+        let root = try #require(raw as? [String: Any])
+
+        let snap = StoreNormalizer.normalize(root)
+
+        #expect(snap.key == "dailystore")
+        #expect(snap.title == "每日商店")
+        #expect(snap.items.count == 4)
+
+        #expect(snap.items[0].name == "金角生辉 判官")
+        #expect(snap.items[0].price == 1290)
+        #expect(snap.items[0].qualityKey == "purple")
+        #expect(snap.items[0].rarity == .purple)
+        #expect(snap.items[0].iconURL?.absoluteString.hasSuffix("C8D3C3A4-49EB-6EE4-50CF-C1BF6CFD2A12.png") == true)
+        #expect(snap.items[0].likeText == "3.1万人想要")
+        #expect(snap.items[0].tips == "请前往游戏中购买！")
+
+        #expect(snap.items[1].name == "荆刺链刃")
+        #expect(snap.items[1].price == 3180)
+        #expect(snap.items[1].rarity == .orange)
+
+        #expect(snap.items[3].name == "ORA x 颗秒 狂徒")
+        #expect(snap.items[3].rarity == .yellow)
+        #expect(snap.items[3].likeText == "53万人想要")
+
+        // 服务端直接给的剩余秒数和刷新时刻
+        #expect(snap.remainingSeconds == 60433)
+        #expect(snap.remaining == "16 小时 47 分")
+        let expires = try #require(snap.expiresAt)
+        #expect(abs(expires.timeIntervalSince1970 - 1792367999) < 1)
+
+        #expect(snap.items[0].qualityText == "紫")
+    }
+
+    @Test("真实响应里同时有其他面板时，优先选 dailystore")
+    func prefersDailyStorePanel() {
+        let root: [String: Any] = [
+            "result": 0,
+            "data": [
+                ["key": "kingdomstore", "title": "王国商店",
+                 "list": [["goods_name": "独狼 称号", "rmb_price": "2500"]]],
+                ["key": "dailystore", "title": "每日商店",
+                 "list": [["goods_name": "金角生辉 判官", "rmb_price": "1290",
+                           "quality": "purple"]]],
+            ],
+        ]
+        let snap = StoreNormalizer.normalize(root)
+        #expect(snap.key == "dailystore")
+        #expect(snap.items.first?.name == "金角生辉 判官")
+    }
+
+    // MARK: - 商店归一化（通用形态）
 
     @Test("归一化：SkinsPanelLayout.SingleItemOffers 形态")
     func normalizeStore() throws {
@@ -234,9 +294,8 @@ struct ZhangwaKitTests {
         #expect(snap.items.count == 2)
         #expect(snap.items[0].name == "侦察行动 幻影")
         #expect(snap.items[0].price == 1775)
-        #expect(snap.items[0].rarity == .premium)
-        #expect(snap.items[0].rarity.label == "PREMIUM")
-        #expect(snap.items[1].rarity == .exquisite)
+        #expect(snap.items[0].rarity == .purple)     // premium → purple
+        #expect(snap.items[1].rarity == .orange)     // 4 → orange
         #expect(snap.items[1].owned)
         #expect(snap.expiresAt != nil)
         #expect(snap.rawKeys.contains("SkinsPanelLayout"))
@@ -252,8 +311,8 @@ struct ZhangwaKitTests {
         ]
         let snap = StoreNormalizer.normalize(raw)
         #expect(snap.items.count == 2)
-        #expect(snap.items[0].rarity == .select)
-        #expect(snap.items[1].rarity == .ultra)
+        #expect(snap.items[0].rarity == .blue)      // 1 → blue
+        #expect(snap.items[1].rarity == .yellow)    // ultra → yellow
     }
 
     @Test("图片 URL：协议相对补 https，显式 http 保留",
@@ -264,22 +323,30 @@ struct ZhangwaKitTests {
           ])
     func imageURLHandling(input: String, expected: String) throws {
         let snap = StoreNormalizer.normalize([
-            "items": [["id": "1", "name": "x", "icon": input]],
+            "items": [["id": "1", "name": "x", "goods_pic": input]],
         ])
         let url = try #require(snap.items.first?.iconURL)
         #expect(url.absoluteString == expected)
     }
 
-    @Test("品质别名与数字都认，兜底 PREMIUM")
+    @Test("品质：5 个颜色各归其位，认不出来返回 nil（不硬塞默认档）")
     func rarityAliases() {
-        #expect(Rarity.from("exclusive") == .exquisite)
-        #expect(Rarity.from("ULTRA") == .ultra)
-        #expect(Rarity.from("传奇") == .ultra)
-        #expect(Rarity.from("尊贵") == .premium)
-        #expect(Rarity.from(3) == .premium)
-        #expect(Rarity.from("3") == .premium)
-        #expect(Rarity.from("garbage") == .premium)
-        #expect(Rarity.from(nil) == .premium)
+        #expect(Rarity.from("blue") == .blue)
+        #expect(Rarity.from("GREEN") == .green)
+        #expect(Rarity.from("purple") == .purple)
+        #expect(Rarity.from("orange") == .orange)
+        #expect(Rarity.from("yellow") == .yellow)
+        // 数字档位
+        #expect(Rarity.from(3) == .purple)
+        #expect(Rarity.from("5") == .yellow)
+        // 国际服 / 老写法别名
+        #expect(Rarity.from("premium") == .purple)
+        #expect(Rarity.from("exclusive") == .orange)
+        #expect(Rarity.from("ultra") == .yellow)
+        // 认不出来就是 nil
+        #expect(Rarity.from("garbage") == nil)
+        #expect(Rarity.from(nil) == nil)
+        #expect(Rarity.from("") == nil)
     }
 
     @Test("SsoAuthType 与 accountType 的映射（AppContext 同款）")
@@ -292,14 +359,35 @@ struct ZhangwaKitTests {
         #expect(SsoAuthType(rawValue: 255) == .tourist)
     }
 
-    @Test("商店候选：第一名必须是从 APK 里读出来的 zone=shop，不是猜的")
+    @Test("商店默认路径就是实测出来的那个接口")
     func shopCandidateIsFromAPK() {
         let c = ZhangwaClient(session: qqSession())
-        // ZoneMallHomeFragment → @RouteInfo("valpage://mobile_store_main")
-        //   → getDefaultTabSrcUrl() = "/go/zone/v3/channel?zone=shop&disableAlgo=$DISABLEALGO$"
-        #expect(c.shopCandidates.first == "/go/zone/v3/channel?zone=shop&disableAlgo=0")
+        // 2026-10 抓包实测：POST /go/mlol_store/agame/user_store body={}
+        // 返回 data[].key == "dailystore"，title == "每日商店"
+        #expect(c.shopPath == "/go/mlol_store/agame/user_store")
+        #expect(c.shopCandidates.first == "/go/mlol_store/agame/user_store")
+        #expect(ZhangwaClient.dailyStorePath == "/go/mlol_store/agame/user_store")
         #expect(c.probeHosts.contains("app.val.qq.com"))
         #expect(c.probeHosts.contains("app.mval.qq.com"))
+    }
+
+    @Test("默认配置下 fetchStore 直接打每日商店接口")
+    func fetchStoreUsesDailyStorePath() async throws {
+        let c = ZhangwaClient(session: qqSession())
+        var seen: [URLRequest] = []
+        c.transportOverride = { [self] req in
+            seen.append(req)
+            return json(#"{"result":0,"msg":"","data":[{"key":"dailystore","title":"每日商店","time":10,"end_ts":1792367999,"list":[{"goods_name":"x","rmb_price":"100","quality":"blue"}]}]}"#)
+        }
+
+        let raw = try await c.fetchStore()
+        let req = try #require(seen.first)
+        #expect(req.httpMethod == "POST")
+        #expect(req.url?.path == "/go/mlol_store/agame/user_store")
+
+        let snap = StoreNormalizer.normalize(raw)
+        #expect(snap.items.count == 1)
+        #expect(snap.title == "每日商店")
     }
 
     @Test("探测会两台域名都试，命中就停")

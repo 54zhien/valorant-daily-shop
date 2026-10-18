@@ -309,26 +309,33 @@ final class AppModel {
 
     // MARK: - 演示
 
+    /// 演示数据。用真实抓包里的商品名，纯离线，不联网。
     func loadDemo() {
+        func item(_ id: String, _ name: String, _ weapon: String,
+                  _ price: Int, _ quality: String, _ owned: Bool) -> ShopItem {
+            ShopItem(id: id, name: name, weaponName: weapon, iconURL: nil,
+                     price: price, qualityKey: quality, rarity: Rarity.from(quality),
+                     owned: owned, offerID: id)
+        }
+
         snapshot = StoreSnapshot(
+            title: "每日商店",
+            key: "dailystore",
             items: [
-                ShopItem(id: "d1", name: "侦察行动 幻影", weaponName: "幻影 / Phantom",
-                         iconURL: nil, price: 1775, rarity: .premium, owned: false, offerID: "d1"),
-                ShopItem(id: "d2", name: "起源 暴徒", weaponName: "暴徒 / Vandal",
-                         iconURL: nil, price: 2175, rarity: .exquisite, owned: true, offerID: "d2"),
-                ShopItem(id: "d3", name: "离子圣芒 短剑", weaponName: "短剑 / Sheriff",
-                         iconURL: nil, price: 875, rarity: .select, owned: false, offerID: "d3"),
-                ShopItem(id: "d4", name: "至尊龙炎 蝴蝶刀", weaponName: "近战 / Melee",
-                         iconURL: nil, price: 4950, rarity: .ultra, owned: false, offerID: "d4"),
+                item("d1", "金角生辉 判官", "判官 / Sheriff", 1290, "purple", false),
+                item("d2", "荆刺链刃", "近战 / Melee", 3180, "orange", true),
+                item("d3", "天界神兵//2.0 奥丁", "奥丁 / Odin", 1290, "purple", false),
+                item("d4", "ORA x 颗秒 狂徒", "狂徒 / Vandal", 1790, "yellow", false),
             ],
-            expiresAt: Date().addingTimeInterval(6 * 3600),
-            remaining: nil,
-            currency: "VP",
+            expiresAt: Date().addingTimeInterval(60_433),
+            remainingSeconds: 60_433,
+            remaining: "16 小时 47 分",
+            currency: "点券",
             rawKeys: ["demo"],
             rawJSON: "{}")
         state = .loaded
         flipped = [false, false, false, false]
-        push("已载入演示数据（不代表真实商店）")
+        push("已载入演示数据（真实抓包里的商品名，但价格/品质只是样例）")
     }
 
     // MARK: - 工具

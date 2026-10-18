@@ -1,0 +1,86 @@
+{
+  "_comment": "真实抓包数据（2026-10-18，用户本人账号）。POST /go/mlol_store/agame/user_store body={}  的响应。用于 StoreNormalizer 回归测试。",
+  "result": 0,
+  "msg": "",
+  "err_msg": "",
+  "req_id": "1ea7cf54-2b26-4147-8acb-0c8013e29938",
+  "data": [
+    {
+      "key": "dailystore",
+      "title": "每日商店",
+      "time": 60433,
+      "end_ts": 1792367999,
+      "cur_ts": 1792307566,
+      "list": [
+        {
+          "goods_name": "金角生辉 判官",
+          "goods_pic": "https://game.gtimg.cn/images/val/agamezlk/WeaponSkins/C8D3C3A4-49EB-6EE4-50CF-C1BF6CFD2A12.png",
+          "goods_id": "4f45735c-4513-e9a6-48ac-35acca4c3410",
+          "guid": "57AD1E5D-4289-4DE0-7926-899CEF10DB37",
+          "intent": "",
+          "tips": "请前往游戏中购买！",
+          "rmb_price": "1290",
+          "quality": "purple",
+          "bg_image": "https://game.gtimg.cn/images/val/agamezlk/valapp/store/pink.png",
+          "showed": 1,
+          "token": "",
+          "show_mask_quality": 0,
+          "like_num": "3.1万人想要",
+          "skin_tag": "",
+          "package_bg": "http://ossweb-img.qq.com/images/gameshop/val/images//RGupr1720078060.png"
+        },
+        {
+          "goods_name": "荆刺链刃",
+          "goods_pic": "https://game.gtimg.cn/images/val/agamezlk/WeaponSkins/E57BECD4-4580-D8CA-1391-95815F421D94.png",
+          "goods_id": "a2c4a54a-42ab-425a-b786-3883c5c3db0f",
+          "guid": "FA0972DE-4868-1679-4A3E-7BB357F7F281",
+          "intent": "",
+          "tips": "请前往游戏中购买！",
+          "rmb_price": "3180",
+          "quality": "orange",
+          "bg_image": "https://game.gtimg.cn/images/val/agamezlk/valapp/store/yellow.png",
+          "showed": 1,
+          "token": "",
+          "show_mask_quality": 0,
+          "like_num": "35.2万人想要",
+          "skin_tag": "",
+          "package_bg": "http://ossweb-img.qq.com/images/gameshop/val/images//Pn7Fc1773798159.png"
+        },
+        {
+          "goods_name": "天界神兵//2.0 奥丁",
+          "goods_pic": "https://game.gtimg.cn/images/val/agamezlk/WeaponSkins/A16360A6-4588-1CDF-D0E2-0EA215DC9FAA.png",
+          "goods_id": "501811a4-4d60-d1fd-2775-ea92530ccbfa",
+          "guid": "A7995818-409F-C79B-20B7-28AD642F3135",
+          "intent": "",
+          "tips": "请前往游戏中购买！",
+          "rmb_price": "1290",
+          "quality": "purple",
+          "bg_image": "https://game.gtimg.cn/images/val/agamezlk/valapp/store/pink.png",
+          "showed": 1,
+          "token": "",
+          "show_mask_quality": 0,
+          "like_num": "16.1万人想要",
+          "skin_tag": "",
+          "package_bg": "http://ossweb-img.qq.com/images/gameshop/val/images//TkY601720078478.png"
+        },
+        {
+          "goods_name": "ORA x 颗秒 狂徒",
+          "goods_pic": "https://game.gtimg.cn/images/val/agamezlk/WeaponSkins/296D373F-4838-5712-D8D4-EAAF5CFABE79.png",
+          "goods_id": "97855211-4064-4fa5-996c-cc840c587cc8",
+          "guid": "2EF9EE97-4735-E7D9-069F-FB80541468B5",
+          "intent": "",
+          "tips": "请前往游戏中购买！",
+          "rmb_price": "1790",
+          "quality": "yellow",
+          "bg_image": "https://game.gtimg.cn/images/val/agamezlk/valapp/store/golden.png",
+          "showed": 1,
+          "token": "",
+          "show_mask_quality": 0,
+          "like_num": "53万人想要",
+          "skin_tag": "",
+          "package_bg": "http://ossweb-img.qq.com/images/gameshop/val/images//TkY601720078478.png"
+        }
+      ]
+    }
+  ]
+}
