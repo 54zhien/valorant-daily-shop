@@ -359,6 +359,32 @@ struct ZhangwaKitTests {
         #expect(SsoAuthType(rawValue: 255) == .tourist)
     }
 
+    @Test("探测不能把返回空壳的接口当成命中")
+    func probeRejectsEmptyPayload() async {
+        let c = ZhangwaClient(session: qqSession())
+        c.shopCandidates = ["/go/zone/v3/channel?zone=shop&disableAlgo=0"]
+        c.transportOverride = { [self] _ in
+            // 这个接口就是返回 result=0 + data:null —— 曾经把正确路径覆盖掉
+            json(#"{"result":0,"msg":"success","data":null}"#)
+        }
+        let results = await c.probeShop()
+        #expect(results.count == 1)
+        #expect(results[0].ok == false, "result=0 但 data 是空的不该算命中")
+        #expect(results[0].detail.contains("空"))
+    }
+
+    @Test("hasPayload 的判定")
+    func hasPayloadRule() {
+        #expect(ZhangwaClient.hasPayload(["a": 1]) == true)
+        #expect(ZhangwaClient.hasPayload([1, 2]) == true)
+        #expect(ZhangwaClient.hasPayload("x") == true)
+        #expect(ZhangwaClient.hasPayload(NSNull()) == false)
+        #expect(ZhangwaClient.hasPayload([String: Any]()) == false)
+        #expect(ZhangwaClient.hasPayload([Any]()) == false)
+        #expect(ZhangwaClient.hasPayload("") == false)
+        #expect(ZhangwaClient.hasPayload(nil) == false)
+    }
+
     @Test("商店默认路径就是实测出来的那个接口")
     func shopCandidateIsFromAPK() {
         let c = ZhangwaClient(session: qqSession())

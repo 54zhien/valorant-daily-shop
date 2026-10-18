@@ -269,21 +269,33 @@ function hookAppContext() {
         // 和日志同目录：app 自己的 files 目录（app uid 有写权限）
         const SESSION = OUT.replace(/mval_capture\.log$/, 'mval_session.json');
 
-        // AppContext.a(user_id, ct, authType, openid, uin, access_token, tid)
-        // —— 这就是完整登录态，抓到它 iOS 端就能自刷新（见 README · iOS 路线）
+        // AppContext.a(...) 的真实参数顺序（对照 ct_info 的响应体才能确认，
+        // 之前按想当然写，把 ct 标成了 access_token，导致拿去做自刷新一直 11004）：
+        //
+        //   0: user_id        "JA-3095d6..."                     36 字符
+        //   1: 掌瓦 openid     "74193457a-b8d058817457ae26_10200"  32 字符
+        //   2: authType       4
+        //   3: QQ openid       "A44A6AA89A42ECA6909C2492C2193D14"  32 字符  ← Cookie 里要的是这个
+        //   4: uin            2751275315
+        //   5: ct             464 字符（很长的那个！）
+        //   6: wt / tid       352 字符
+        //
+        // 有效期（ct_info）：wt 只有 30 分钟（refresh_wt_span=1800），
+        //                    ct 有 7 天（refresh_ct_span=604800）。
+        // 所以 ct 一定要抓下来 —— 有它就能自己换 wt。
         Ctx.a.overload('java.lang.String', 'java.lang.String', 'int',
                         'java.lang.String', 'long', 'java.lang.String',
-                        'java.lang.String').implementation = function (userId, ct, authType,
-                                                                     openid, uin, token, tid) {
+                        'java.lang.String').implementation = function (userId, valOpenid, authType,
+                                                                     qqOpenid, uin, ct, tid) {
             const rec = {
                 t: now(),
                 kind: 'SESSION',
                 user_id: userId,
                 ct: ct,
                 auth_type: authType,
-                openid: openid,
+                openid: qqOpenid,
+                val_openid: valOpenid,
                 uin: uin,
-                access_token: token,
                 tid: tid,
             };
             emit(rec);
@@ -296,7 +308,7 @@ function hookAppContext() {
             } catch (e) {
                 console.log('[!] 写 session 文件失败: ' + e);
             }
-            return this.a(userId, ct, authType, openid, uin, token, tid);
+            return this.a(userId, valOpenid, authType, qqOpenid, uin, ct, tid);
         };
 
         // AppContext.a(String) —— 刷新 wt 时被调用；Cookie 里的 tid 就是它

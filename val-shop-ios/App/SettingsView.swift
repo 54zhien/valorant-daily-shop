@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 import UniformTypeIdentifiers
 import ZhangwaKit
 
@@ -191,6 +191,14 @@ struct SettingsView: View {
                 model.saveShopPath(model.shopPathDraft, body: model.shopBodyDraft)
             } label: {
                 Label("保存", systemImage: "checkmark.circle")
+            }
+
+            // 探测万一填错的路径（比如返回空壳的 zone=shop 曾把正确值覆盖掉），
+            // 得有个一键退回来的地方
+            Button {
+                model.resetShopPath()
+            } label: {
+                Label("恢复默认接口", systemImage: "arrow.counterclockwise")
             }
 
             Button {

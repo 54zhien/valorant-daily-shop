@@ -405,7 +405,12 @@ public final class ZhangwaClient {
         return try await request(path, body: shopBody ?? [:], method: shopMethod)
     }
 
-    /// 每个候选路径 × 每台域名，POST/GET 都试一遍
+    /// 每个候选路径 × 每台域名，POST/GET 都试一遍。
+    ///
+    /// ⚠️ 判断「命中」不能只看 `result == 0`。
+    /// `/go/zone/v3/channel?zone=shop` 就是反例：它返回 `result=0` 但 `data` 是 `null`
+    /// —— 那只是个空壳容器，把它当成商店接口会覆盖掉真正的那个。
+    /// 所以还要求 data 里确实有东西。
     public func probeShop() async -> [(path: String, ok: Bool, detail: String)] {
         var out: [(String, Bool, String)] = []
         let savedHost = host
@@ -419,9 +424,12 @@ public final class ZhangwaClient {
                 for m in ["POST", "GET"] {
                     do {
                         let data = try await request(candidate, body: [:], method: m)
-                        hit = true
-                        detail = "OK [\(m)] @\(h) \(Self.preview(data))"
-                        break
+                        if Self.hasPayload(data) {
+                            hit = true
+                            detail = "命中 [\(m)] @\(h)  \(Self.preview(data))"
+                            break
+                        }
+                        detail = "result=0 但 data 是空的（[\(m)] @\(h)）—— 空壳，不算命中"
                     } catch {
                         detail = "[\(h)] \(error.localizedDescription)"
                     }
@@ -431,6 +439,16 @@ public final class ZhangwaClient {
             out.append((candidate, hit, detail))
         }
         return out
+    }
+
+    /// data 里到底有没有内容。null / {} / [] / "" 都算空。
+    public nonisolated static func hasPayload(_ any: Any?) -> Bool {
+        guard let any else { return false }
+        if any is NSNull { return false }
+        if let d = any as? [String: Any] { return !d.isEmpty }
+        if let a = any as? [Any] { return !a.isEmpty }
+        if let s = any as? String { return !s.isEmpty && s != "null" }
+        return true
     }
 
     nonisolated static func preview(_ any: Any?) -> String {

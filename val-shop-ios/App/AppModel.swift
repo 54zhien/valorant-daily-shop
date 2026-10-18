@@ -277,16 +277,42 @@ final class AppModel {
         push("已清除会话")
     }
 
+    /// 刷新票据。
+    ///
+    /// 掌瓦两个票据的有效期差了三个数量级（来自抓包里的 ct_info）：
+    ///   refresh_wt_span = 1800     → wt（Cookie 里的 tid）只有 **30 分钟**
+    ///   refresh_ct_span = 604800   → ct 有 **7 天**
+    /// 所以必须用 ct 现换 wt，失败时也要**把真实错误打出来**，
+    /// 不能像以前那样静默什么都不显示。
     func refreshTickets() async {
-        push("刷新票据 …")
-        if (try? await client.refreshClientTicket()) == true {
-            push("refresh_client_ticket 成功，ct 已更新")
+        guard hasSession else {
+            push("还没有登录态，先导入")
+            return
         }
+        if session.ct.isEmpty {
+            push("这份登录态没有 ct，换不了新票据 —— 只能重新导入带 ct 的 session")
+            return
+        }
+
+        push("用 ct 换新 wt …")
+        do {
+            _ = try await client.refreshClientTicket()
+        } catch {
+            push("  refresh_client_ticket 失败：\(error.localizedDescription)")
+        }
+
         if await client.refreshWebTicket() {
-            push("get_web_ticket 成功，tid 已更新")
+            push("  ✅ get_web_ticket 成功，tid 已更新（30 分钟后要再换）")
+        } else {
+            push("  ❌ get_web_ticket 失败 —— ct 可能也过期了，重新导入一份带 ct 的 session")
         }
-        if (try? await client.refreshThirdToken()) != nil {
-            push("refresh_third_token 成功，access_token 已更新")
+
+        do {
+            if try await client.refreshThirdToken() != nil {
+                push("  refresh_third_token 成功")
+            }
+        } catch {
+            push("  refresh_third_token 失败：\(error.localizedDescription)")
         }
         applySession(client.session)
     }
@@ -339,18 +365,28 @@ final class AppModel {
 
     func probe() async {
         state = .loading
-        push("探测候选路径（POST/GET 都试）…")
+        push("探测候选路径（POST/GET 都试；只看 result=0 不算数，data 里得有东西）…")
         let results = await client.probeShop()
         for r in results {
             push("\(r.ok ? "✅" : "❌") \(r.path)  \(r.detail)")
         }
-        if let first = results.first(where: { $0.ok }) {
-            saveShopPath(first.path, body: shopBodyDraft)
-            push("已自动填入命中路径：\(first.path)")
+        let hits = results.filter { $0.ok }
+        if hits.count == 1, let only = hits.first {
+            saveShopPath(only.path, body: shopBodyDraft)
+            push("唯一命中，已自动填入：\(only.path)")
+        } else if hits.count > 1 {
+            push("有 \(hits.count) 个命中，不自动填了，你挑一个。")
         } else {
-            push("没命中 —— 必须抓包拿到真实路径（见 README）")
+            push("没命中。默认值本来就是实测确认的接口，点「恢复默认接口」即可。")
         }
         state = .idle
+    }
+
+    /// 把商店接口恢复成实测确认的默认值。
+    /// 探测一旦填入错的路径（比如那个返回空壳的 zone=shop），用户得有办法退回来。
+    func resetShopPath() {
+        saveShopPath(ZhangwaClient.dailyStorePath, body: "{}")
+        push("已恢复默认接口：\(ZhangwaClient.dailyStorePath)")
     }
 
     // MARK: - 演示
