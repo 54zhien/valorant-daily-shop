@@ -38,6 +38,11 @@ mval_capture.log
 mval-*.jsonl
 *.flow
 
+# 抓包辅助脚本下载的东西
+val-shop/capture/frida-server*
+val-shop/capture/.capture_state.json
+__pycache__/
+
 # macOS / Windows
 .DS_Store
 Thumbs.db
