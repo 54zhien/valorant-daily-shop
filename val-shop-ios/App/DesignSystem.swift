@@ -76,7 +76,7 @@ enum ZW {
     /// 翻牌时长。
     /// 现在是一整段编排（光跑一圈 → 抬升 → 翻转 → 落下），不是单纯翻转，
     /// 所以比原来长：0.9s。四张错开 130ms 连起来约 1.3s。
-    static let flip: Double = 0.9
+    static let flip: Double = 1.1
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 
@@ -90,8 +90,10 @@ enum ZW {
     static let flipLiftOffset: CGFloat = 7
     /// 抬升时顺带放大多少（0.04 = 4%，和位移一起才有"离开桌面"的错觉）
     static let flipLiftScale: CGFloat = 0.04
-    /// 边缘透光的强度（**中性白**，翻之前不透露品质）
-    static let flipGlow: Double = 0.85
+    /// 品质光的强度（扫过去那一下最亮）
+    static let flipGlow: Double = 1.0
+    /// 翻过来之后，光**不消失**，留在这个透明度常亮（0.38 = 38%）
+    static let flipGlowResting: Double = 0.38
 }
 
 // ============================================================================
@@ -180,6 +182,50 @@ struct ZWHatchTexture: Shape {
             p.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
             x += pitch
         }
+        return p
+    }
+}
+
+/// 一个**单条连续子路径**的圆角矩形，专门用来做 `trim` 跑光。
+///
+/// 为什么不能用 `RoundedRectangle`：它的 path 由多段子路径拼成，
+/// `trim(from:to:)` 会按**每条子路径**分别裁剪 —— 表现就是光断成四块、不连续。
+/// 这里手工拼一条闭合路径（上边 → 右上弧 → 右边 → … → 左上弧），
+/// 这样 `trim` 才是沿着轮廓一圈走的。
+struct ZWRing: Shape {
+
+    var cornerRadius: CGFloat
+    var inset: CGFloat
+
+    init(cornerRadius: CGFloat, inset: CGFloat = 0) {
+        self.cornerRadius = cornerRadius
+        self.inset = inset
+    }
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: inset, dy: inset)
+        let radius = max(0, min(cornerRadius, min(r.width, r.height) / 2))
+        var p = Path()
+
+        // 从上边中点出发，顺时针走一圈
+        p.move(to: CGPoint(x: r.midX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX - radius, y: r.minY))
+        p.addArc(center: CGPoint(x: r.maxX - radius, y: r.minY + radius),
+                 radius: radius, startAngle: .degrees(-90), endAngle: .degrees(0),
+                 clockwise: false)
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - radius))
+        p.addArc(center: CGPoint(x: r.maxX - radius, y: r.maxY - radius),
+                 radius: radius, startAngle: .degrees(0), endAngle: .degrees(90),
+                 clockwise: false)
+        p.addLine(to: CGPoint(x: r.minX + radius, y: r.maxY))
+        p.addArc(center: CGPoint(x: r.minX + radius, y: r.maxY - radius),
+                 radius: radius, startAngle: .degrees(90), endAngle: .degrees(180),
+                 clockwise: false)
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY + radius))
+        p.addArc(center: CGPoint(x: r.minX + radius, y: r.minY + radius),
+                 radius: radius, startAngle: .degrees(180), endAngle: .degrees(270),
+                 clockwise: false)
+        p.closeSubpath()
         return p
     }
 }

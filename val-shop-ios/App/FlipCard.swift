@@ -66,37 +66,44 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
     /// 缓出：光跑起来时头快尾慢，更像"扫过去"
     private func easeOut(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
 
-    /// 品质光走完一圈的进度
-    private var ringProgress: Double { easeOut(window(0.02, 0.30)) }
+    /// 品质光扫完一圈的进度（0.02 → 0.40，比上一版慢一倍）
+    private var ringProgress: Double { easeOut(window(0.02, 0.40)) }
 
-    /// 抬升量：0.02→0.30 起来，0.82→1.0 落下
+    /// 抬升量：0.02→0.32 起来，0.86→1.0 落下
     private var lift: Double {
         guard !reduceMotion else { return 0 }
-        let up = easeOut(window(0.02, 0.30))
-        let down = window(0.82, 1.0)
+        let up = easeOut(window(0.02, 0.32))
+        let down = window(0.86, 1.0)
         return up * (1 - down)
     }
 
-    /// 翻转角度：0.32→0.88 转完，最后 25% 加 3.2° 过冲
+    /// 翻转角度：0.40→0.92 转完（光扫完之后才翻），最后 25% 加 3.2° 过冲
     private var rotationAngle: Double {
         guard !reduceMotion else { return 0 }
-        let t = window(0.32, 0.88)
+        let t = window(0.40, 0.92)
         let tail = min(max((t - 0.75) / 0.25, 0), 1)
         return t * 180 + 3.2 * sin(.pi * tail)
     }
 
-    /// 光的存在感：跑圈时最强，落下时淡出
-    private var ringOpacity: Double {
-        if reduceMotion {
-            // 减弱动态效果：不跑圈，改成整体淡入淡出（只有透明度变化）
-            return sin(.pi * min(max(progress, 0), 1))
-        }
-        return 1 - window(0.82, 0.96)
+    /// 划过的那道"光头"：光扫完就收掉
+    private var cometOpacity: Double {
+        reduceMotion ? 0 : 1 - window(0.34, 0.48)
     }
 
-    /// 换面：翻转行程的中点。那一刻卡片侧对镜头，换面看不见
+    /// 整圈光的亮度。
+    /// **翻过来之后不消失**：扫的时候最亮，翻到正面后收在 `flipGlowResting` 常亮。
+    private var ringOpacity: Double {
+        if reduceMotion {
+            // 减弱动态效果：不跑圈，只做整体淡入 → 停在常亮档
+            return ZW.flipGlowResting + (1 - ZW.flipGlowResting) * sin(.pi * min(max(progress, 0), 1))
+        }
+        let settle = window(0.58, 0.88)      // 翻过去的过程中把亮度收下来
+        return ZW.flipGlow * (1 - settle) + ZW.flipGlowResting * settle
+    }
+
+    /// 换面：翻转行程的中点（0.40 与 0.92 之间）。那一刻卡片侧对镜头，换面看不见
     private var showsFront: Bool {
-        reduceMotion ? progress >= 0.5 : progress >= 0.60
+        reduceMotion ? progress >= 0.5 : progress >= 0.66
     }
 
     private var backOpacity: Double {
@@ -147,28 +154,37 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
                           perspective: reduceMotion ? 0 : 0.35)
     }
 
-    /// 周边品质光：一段亮光沿边缘跑一圈，走过的部分留下一圈包住卡牌的光晕
+    /// 周边品质光。
+    ///
+    /// 用 `ZWRing`（**单条连续子路径**）而不是 `RoundedRectangle` ——
+    /// 后者 trim 起来会按子路径分段裁，光会断成四块。
+    ///
+    /// 三层：
+    ///   ① 走过的轨迹：把卡"包"起来的光晕（翻完之后这一层常亮）
+    ///   ② 跑动的光头：一段短亮线，扫完就收
+    ///   ③ 光头自己的品质色晕
     private var ring: some View {
-        ZStack {
-            // 走过的轨迹 —— 把卡"包"起来的那层
-            shape
-                .trim(from: 0, to: ringProgress)
-                .stroke(accent.opacity(0.55), lineWidth: 4)
-                .blur(radius: 7)
+        let track = ZWRing(cornerRadius: cornerRadius, inset: 2)
 
-            // 跑动的光头 —— 一段短亮线
-            shape
+        return ZStack {
+            track
+                .trim(from: 0, to: ringProgress)
+                .stroke(accent, lineWidth: 4)
+                .blur(radius: 6)
+
+            track
                 .trim(from: max(0, ringProgress - 0.22), to: ringProgress)
                 .stroke(Color.white.opacity(0.95), lineWidth: 2)
                 .blur(radius: 1.2)
+                .opacity(cometOpacity)
 
-            // 光头自己也带一层品质色的晕
-            shape
+            track
                 .trim(from: max(0, ringProgress - 0.22), to: ringProgress)
                 .stroke(accent, lineWidth: 3.5)
                 .blur(radius: 5)
+                .opacity(cometOpacity)
         }
-        .opacity(ringOpacity * ZW.flipGlow)
+        .opacity(ringOpacity)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
