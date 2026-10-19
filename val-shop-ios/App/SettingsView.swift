@@ -56,7 +56,13 @@ struct SettingsView: View {
                 Text(model.session.ct.isEmpty ? "无" : "有")
                     .foregroundStyle(model.session.ct.isEmpty ? .orange : .green)
             }
-            LabeledContent("ct 有效期") {
+            LabeledContent("登录状态") {
+                Text(model.session.ct.isEmpty
+                     ? "未登录"
+                     : "已登录 · \(model.session.authType == .qq ? "QQ" : "微信")")
+                    .foregroundStyle(.secondary)
+            }
+            LabeledContent("ct 续期窗口") {
                 Text(model.ctExpiryText)
                     .foregroundStyle(model.session.ct.isEmpty ? .orange : .secondary)
             }

@@ -158,13 +158,24 @@ final class AppModel {
 
     var hasSession: Bool { session.isValid }
 
-    /// ct 还有多久过期（7 天窗口）。nil = 不知道。
+    /// ct 还有多久过期。
+    ///
+    /// ⚠️ 这里用的是 `refreh_ct_span` 的 7 天，**不是** `expires` 的 30 天。
+    /// 两个字段在协议里都存在（RefreshClientTicketProtocol.RefreshCTInfo）：
+    ///   · refresh_ct_span = 604800 (7 天)  -> 建议的续期间隔
+    ///   · expires         = 2592000 (30 天) -> 实际有效期（推测）
+    ///
+    /// 按 7 天算是因为**两边都安全**：
+    ///   · 如果真实是 7 天  -> 算得准
+    ///   · 如果真实是 30 天 -> 只是显示偏保守 + 续得偏勤，没有坏处
+    /// 反过来按 30 天算，万一真实是 7 天就会误报「还有 23 天」然后突然掉线。
+    /// 这种地方宁可用保守值。
     var ctExpiryText: String {
         guard !session.ct.isEmpty else { return "无 ct —— 无法自刷新" }
         guard session.ctUpdatedAt > 0 else { return "未知（导入时没记时间）" }
         let left = session.ctUpdatedAt + ZhangwaSession.ctLifetime
             - Date().timeIntervalSince1970
-        if left <= 0 { return "已过期，需要重新扫码登录" }
+        if left <= 0 { return "该续期了（会自动续）" }
         let days = Int(left) / 86_400
         let hours = (Int(left) % 86_400) / 3_600
         return days > 0 ? "还有 \(days) 天 \(hours) 小时" : "还有 \(hours) 小时"
