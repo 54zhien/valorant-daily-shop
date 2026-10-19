@@ -12,6 +12,7 @@ struct ShopView: View {
     @Environment(AppModel.self) private var model
 
     @State private var showSession = false
+    @State private var showRolePicker = false
     @Namespace private var glassNamespace
 
     private let columns = [GridItem(.adaptive(minimum: 158), spacing: 16)]
@@ -88,16 +89,39 @@ struct ShopView: View {
     // MARK: - 头部
 
     private var header: some View {
+        // 有多个角色时整块可点，点开切换。
+        // sheet 挂在 header 上而不是 NavigationStack 上 ——
+        // 同一个视图挂两个 sheet 在 iOS 上不稳（已经踩过一次）。
+        Button {
+            if model.canSwitchRole { showRolePicker = true }
+        } label: {
+            headerContent
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.canSwitchRole)
+        .sheet(isPresented: ) {
+            RolePickerView().environment(model)
+        }
+    }
+
+    private var headerContent: some View {
         HStack(alignment: .center, spacing: 12) {
             // 头像（有卡面就显示卡面，没有就显示首字）
             avatar
 
             VStack(alignment: .leading, spacing: 3) {
                 // ★ 游戏 ID，形如「天天开心#26170」
-                Text(model.displayName)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                HStack(spacing: 4) {
+                    Text(model.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    if model.canSwitchRole {
+                        Image(systemName: chevron.up.chevron.down)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Text(model.displaySubtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)

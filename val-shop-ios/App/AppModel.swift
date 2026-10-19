@@ -214,16 +214,42 @@ final class AppModel {
     /// 而且拉失败时保留上一次的值，比显示空白好。
     var userRole: UserRole?
 
+    /// 可切换的全部角色（端游的）
+    var availableRoles: [UserRole] = []
+
+    /// 用户手选的角色。存 identityKey 而不是下标 ——
+    /// 角色顺序可能变，下标会串。
+    private static let selectedRoleKey = "zw.selectedRoleKey"
+
     /// 拉一次角色信息。失败静默保留旧值 —— 这只是首页装饰，不该影响看商店。
     func loadUserRole() async {
         guard hasSession else {
             userRole = nil
+            availableRoles = []
             return
         }
-        if let roles = await client.fetchGameRoles(), let pick = roles.preferred {
-            userRole = pick
+        guard let roles = await client.fetchGameRoles() else { return }
+
+        availableRoles = roles.selectableRoles
+
+        // 优先用用户手选的那个；它不在列表里了（删号/换号）就退回默认
+        let saved = UserDefaults.standard.string(forKey: Self.selectedRoleKey)
+        if let saved, let hit = availableRoles.first(where: { $0.identityKey == saved }) {
+            userRole = hit
+            return
         }
+        userRole = roles.preferred
     }
+
+    /// 用户切角色
+    func selectRole(_ role: UserRole) {
+        UserDefaults.standard.set(role.identityKey, forKey: Self.selectedRoleKey)
+        userRole = role
+        push("已切换到 \(role.displayName)")
+    }
+
+    /// 要不要显示角色切换入口。只有一个角色时不必显示。
+    var canSwitchRole: Bool { availableRoles.count > 1 }
 
     /// 首页左上角的主标题。
     ///
@@ -238,16 +264,24 @@ final class AppModel {
     /// 主标题下面的副标题：段位 · 等级
     var displaySubtitle: String {
         guard let r = userRole else {
-            return model_isLoading ? "正在读取…" : "数据来自官方同源接口"
+            return state.isLoading ? "正在读取…" : "数据来自官方同源接口"
         }
         var bits: [String] = []
-        if !r.roleText.isEmpty { bits.append(r.roleText) }
+        let rank = r.rankText
+        if !rank.isEmpty { bits.append(rank) }
         if r.level > 0 { bits.append("Lv\(r.level)") }
-        if bits.isEmpty { bits.append(r.areaName.isEmpty ? r.platformText : r.areaName) }
+        if bits.isEmpty {
+            bits.append(r.areaName.isEmpty ? r.platformText : r.areaName)
+        }
         return bits.joined(separator: " · ")
     }
 
-    private var model_isLoading: Bool { state.isLoading }
+    /// 退出登录时把角色缓存也清掉 —— 否则换了账号还会显示上一个人的游戏 ID
+    func clearRoleCache() {
+        userRole = nil
+        availableRoles = []
+        UserDefaults.standard.removeObject(forKey: Self.selectedRoleKey)
+    }
 
     var accountLabel: String {
         guard session.isValid else { return "未登录" }
@@ -425,6 +459,8 @@ final class AppModel {
     }()
 
     func clearSession() {
+        // 顺手清掉角色缓存 —— 否则换了账号还会显示上一个人的游戏 ID
+        clearRoleCache()
         client.updateSession(ZhangwaSession())
         applySession(ZhangwaSession())
         snapshot = .empty
