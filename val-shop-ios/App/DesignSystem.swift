@@ -68,25 +68,41 @@ enum ZW {
 }
 
 // ============================================================================
-//  MARK: - 品牌色（资产目录）
+//  MARK: - 品牌色（资产目录 · 由 Xcode 生成符号）
 // ============================================================================
 //
 //  只有两个颜色是「品牌」而不是「语义」：
 //    zwRouge —— VALORANT 红，主行动 / 告警
 //    zwSignal —— 青绿，已拥有 / 在线
-//  其余一律交给系统语义色。品质五档不是色板，是**服务端数据**
-//  （`Rarity.colorHex`，取自掌瓦 ic_val_goods_quality_1..5），所以留在模型里。
+//
+//  ⚠️ **不要在这里再写 `extension Color { static let zwRouge = ... }`**。
+//  工程开了 `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`，
+//  Xcode 会照着 `Assets.xcassets/zwRouge.colorset` 自动生成同名符号
+//  （`Color` 和 `ShapeStyle` 两份都有），手写一遍就是 invalid redeclaration。
+//  第一版就是栽在这儿 —— CI 报了 4 个重复声明。
+//
+//  想加品牌色：往 Assets.xcassets 里加 colorset，名字即符号名，然后用 `.名字`。
+//
+//  品质五档（蓝绿紫橙金）**不在这里** —— 它们不是 App 色板，是服务端数据
+//  （`Rarity.colorHex`，取自掌瓦 ic_val_goods_quality_1..5），
+//  由 `Theme.swift` 的 `Rarity.color` 现算，改不了也不该改。
 
 extension Color {
-    static let zwRouge = Color("zwRouge")
-    static let zwSignal = Color("zwSignal")
-}
 
-// `.foregroundStyle(.zwRouge)` 这种写法要求成员挂在 ShapeStyle 上，
-// 光有 extension Color 不够（SwiftUI 内置的 .blue / .red 也是声明两份）。
-extension ShapeStyle where Self == Color {
-    static var zwRouge: Color { .zwRouge }
-    static var zwSignal: Color { .zwSignal }
+    /// 从 `#RRGGBB`（也接受不带 `#`）建色。
+    ///
+    /// 只服务于**数据里的颜色**（现在就是品质五档）——
+    /// App 自己的颜色一律走资产目录或系统语义色，不要用这个。
+    init?(hexString: String) {
+        var s = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        self.init(.sRGB,
+                  red: Double((v >> 16) & 0xFF) / 255.0,
+                  green: Double((v >> 8) & 0xFF) / 255.0,
+                  blue: Double(v & 0xFF) / 255.0,
+                  opacity: 1)
+    }
 }
 
 // ============================================================================

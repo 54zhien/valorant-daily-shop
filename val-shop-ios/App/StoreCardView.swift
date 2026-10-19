@@ -102,7 +102,8 @@ struct StoreCardView: View {
 
             VStack(spacing: 12) {
                 ZWDiamond(inset: 0.30)
-                    .stroke(Color.tertiary, lineWidth: 2)
+                    // `.tertiary` 是层级语义样式（不是 Color.tertiary —— 没有那个成员）
+                    .stroke(.tertiary, lineWidth: 2)
                     .frame(width: 30, height: 30)
                 Text("点一下翻开")
                     .font(.caption2)
