@@ -23,8 +23,13 @@ import CryptoKit
 
 /// UIImage 只读，跨隔离传递是安全的；但 UIKit 没给它标 `Sendable`，
 /// 这里显式承担这个责任（全项目仅此一处）。
+///
+/// ⚠️ 整个类型必须标 `nonisolated`：本项目开了 `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor`，
+/// 不标就会被推成 MainActor 隔离，`ImageStore` 里那个非 MainActor 的 Task 根本构造不了它
+/// （CI 报的就是 `main actor-isolated initializer 'init(_:)' cannot be called from outside of the actor`）。
+///
 /// 用 `final class` 是为了能放进 `NSCache`（它的 value 必须 `AnyObject`）。
-final class SendableImage: @unchecked Sendable {
+nonisolated final class SendableImage: @unchecked Sendable {
     let image: UIImage
     init(_ image: UIImage) { self.image = image }
 }
