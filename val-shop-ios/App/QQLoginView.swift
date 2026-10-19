@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 import WebKit
 import ZhangwaKit
 
@@ -54,7 +54,9 @@ struct QQLoginView: View {
                                   // 换过一次 UA 之后，这里应该看到
                                   // xui.ptlogin2.qq.com 是**主框架**。
                                   // 如果它出现在子框架里，说明 iOS 分支还是走了 iframe。
-                                  diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.host ?? "?")", at: 0)
+                                  // 打**完整 URL**，不只 host ——
+                                  // QQ 成功后会经过 s_url 之类的中转，只看 host 看不出走到了哪
+                                  diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.absoluteString.prefix(120))", at: 0)
                                   if diag.count > 12 { diag.removeLast() }
                               },
                               onProbe: { info in
@@ -230,8 +232,57 @@ struct QQLoginView: View {
 
 /// 只做两件事：加载 URL，拦截 auth:// 回调。
 struct QQWebView: UIViewRepresentable {
-    /// 伪装成 Android。理由见 makeUIView 里那段注释 ——
-    /// 不这么做的话 QQ 会把登录页塞进 iframe，然后 Cookie 被 iOS 拦掉。
+    /// 伪装成 Android（转发到 Kit 里的定义，避免两处不一致）
+    static let androidUA = QQLogin.androidUA
+
+    /// 页面加载前注入：把 window.open / location.assign / replace 挂上钩子，
+    /// 一旦发现 auth:// 回调就通过 messageHandler **直接报给原生端**。
+    ///
+    /// 为什么要这个：
+    ///   WKWebView 对**未知 scheme**（auth:// 就是）的处理路径不止一条 ——
+    ///   有时候走 navigationDelegate 的 decidePolicyFor，
+    ///   有时候被当成「尝试打开外部 App」直接吞掉，delegate 一次都不回调。
+    ///   多这一层，不管它用哪种方式跳，我们都能拿到那个 URL。
+    static let hookScript = """
+    (function () {
+      if (window.__qqcbHooked) { return; }
+      window.__qqcbHooked = true;
+
+      function report(u) {
+        try {
+          if (u && String(u).indexOf('auth://') === 0) {
+            window.webkit.messageHandlers.qqcb.postMessage(String(u));
+          }
+        } catch (e) {}
+      }
+
+      try {
+        var _open = window.open;
+        window.open = function (u) { report(u); return _open.apply(this, arguments); };
+      } catch (e) {}
+
+      try {
+        var _assign = window.location.assign;
+        window.location.assign = function (u) {
+          report(u); return _assign.call(window.location, u);
+        };
+      } catch (e) {}
+
+      try {
+        var _replace = window.location.replace;
+        window.location.replace = function (u) {
+          report(u); return _replace.call(window.location, u);
+        };
+      } catch (e) {}
+
+      // href 直接赋值拦不住（location 不可配置），所以退一步兜 hashchange
+      try {
+        window.addEventListener('hashchange', function () {
+          report(window.location.href);
+        }, true);
+      } catch (e) {}
+    })();
+    """
 
     let url: URL
     /// 变了就重新加载（点"刷新"时）
@@ -251,34 +302,25 @@ struct QQWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        // QQ 的登录页会开自己的小窗做校验，给它留个口子，否则可能白屏
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
+
+        // ★ 注入一个脚本，在页面加载前把 window.open 挂上钩子。
+        //    QQ 的成功回调有可能是 window.open('auth://tauth.qq.com/#...')，
+        //    WKWebView 对未知 scheme 的处理路径不止一条，多一层保险。
+        config.userContentController.add(context.coordinator, name: "qqcb")
+        config.userContentController.addUserScript(
+            WKUserScript(source: QQWebView.hookScript,
+                         injectionTime: .atDocumentStart,
+                         forMainFrameOnly: false))
 
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
+        // ★★★ 之前漏了这行！只设 javaScriptCanOpenWindowsAutomatically
+        //     而不实现 WKUIDelegate，window.open 会被**静默忽略** ——
+        //     表现就是「QQ 那边提示已确认，App 这边毫无反应」。
+        web.uiDelegate = context.coordinator
         web.allowsBackForwardNavigationGestures = false
         web.scrollView.bounces = false
-
-        // ★★★ 必须伪装成 Android UA —— 这不是为了骗服务端，是为了绕开
-        //     QQ 登录页里的这一段 iOS 特判：
-        //
-        //         if (isIos()) {
-        //             if (inMQQ()) { window.open(src, '_self') }
-        //             else { document.write('<iframe src="', src, '"></iframe>') }
-        //         } else {
-        //             location.replace(src)
-        //         }
-        //
-        //     iOS + 不在 QQ 里 -> 登录页被塞进 <iframe>，
-        //     xui.ptlogin2.qq.com 就成了**第三方域**，
-        //     而 iOS 的 ITP 会拦掉它的 Cookie -> ptlogin2 会话建不起来
-        //     -> 二维码画得出来但一扫码就"失效"。
-        //
-        //     掌瓦在 Android 上走 location.replace，顶层导航没这问题，
-        //     所以这个坑只有 iOS 版会踩。
-        //
-        //     设 customUserAgent（而不是只设 URLRequest 的 header）——
-        //     后者只作用于首个请求，页面里 navigator.userAgent 读到的还是 iOS。
         web.customUserAgent = QQLogin.androidUA
 
         context.coordinator.web = web
@@ -299,7 +341,7 @@ struct QQWebView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         private let onCallback: (URL) -> Void
         private let onLoaded: () -> Void
         private let onFailed: (String) -> Void
@@ -321,6 +363,46 @@ struct QQWebView: UIViewRepresentable {
             self.onProbe = onProbe
         }
 
+        // MARK: 回调捕获（三层保险）
+
+        /// ① navigationDelegate：常规跳转
+        /// ② uiDelegate：window.open
+        /// ③ JS 注入：直接报给原生
+        private func handleIfCallback(_ url: URL) -> Bool {
+            guard QQLogin.isCallback(url) else { return false }
+            onCallback(url)
+            return true
+        }
+
+        // MARK: WKScriptMessageHandler —— JS 注入那条路
+
+        func userContentController(_ controller: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            guard message.name == "qqcb",
+                  let s = message.body as? String,
+                  let url = URL(string: s) else { return }
+            onProbe?("JS 上报 \(url.absoluteString.prefix(120))")
+            _ = handleIfCallback(url)
+        }
+
+        // MARK: WKUIDelegate —— 没有它 window.open 会被静默忽略
+
+        func webView(_ webView: WKWebView,
+                     createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url {
+                onProbe?("window.open \(url.absoluteString.prefix(120))")
+                if handleIfCallback(url) { return nil }
+            }
+            // 不是回调就**在当前 WebView 里打开**（不要另开窗口），
+            // 否则 QQ 的中转页会在一个我们看不到的窗口里跑
+            if let url = navigationAction.request.url {
+                webView.load(URLRequest(url: url))
+            }
+            return nil
+        }
+
         func load(_ url: URL, token: UUID) {
             // 记下当前 token。不记的话下次 updateUIView 会再加载一次，
             // 然后导航回调写诊断、诊断触发重渲染、又加载 —— 死循环，二维码狂闪。
@@ -340,9 +422,8 @@ struct QQWebView: UIViewRepresentable {
                 decisionHandler(.allow)
                 return
             }
-            if QQLogin.isCallback(target) {
+            if handleIfCallback(target) {
                 decisionHandler(.cancel)
-                onCallback(target)
                 return
             }
             onNavigate?(target, action.targetFrame?.isMainFrame ?? false)
