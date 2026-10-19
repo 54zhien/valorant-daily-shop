@@ -211,21 +211,41 @@ body{
 }
 .card .face.front{transform:rotateY(180deg)}
 
-/* 翻牌的"演出"：抬升 + 投影 + 边缘透光（中性白，不剧透品质）
-   和 App 侧 FlipCard.swift 的 sin(π·p) 曲线对应：两端归零、中段最大 */
-.card.flipped{animation:zwLift .5s cubic-bezier(.42,0,.58,1)}
+/* ==========================================================================
+   翻牌的整段编排（和 App 侧 FlipCard.swift 的时间窗口一一对应）
+     0.00–0.30  品质光沿边缘跑一圈，把卡包起来
+     0.02–0.30  向顶部抬升，底部阴影拉开
+     0.32–0.88  翻转（抬着翻）
+     0.82–1.00  落下，阴影收拢，光淡出
+   总时长 0.9s
+   ========================================================================== */
+
+/* 抬升 + 落下（位移 + 轻微放大 + 底部阴影） */
+.card.flipped{animation:zwLift .9s cubic-bezier(.42,0,.58,1)}
 @keyframes zwLift{
-  0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(0,0,0,0)}
-  50%{transform:scale(1.10);box-shadow:0 14px 28px rgba(0,0,0,.60)}
+  0%  {transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
+  26% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
+  80% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
+  100%{transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
 }
-.card::after{
-  content:"";position:absolute;inset:-1px;border-radius:var(--r-card);
-  box-shadow:inset 0 0 0 2px rgba(255,255,255,.85),
-             0 0 10px rgba(255,255,255,.45);
+
+/* 品质光绕一圈：conic 渐变 + 环形遮罩，靠旋转扫过整圈 */
+.card::before{
+  content:"";position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
+  background:conic-gradient(from 0deg,
+      transparent 0 52%, rgba(255,255,255,.95) 86%, transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+          mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
   opacity:0;pointer-events:none;
 }
-.card.flipped::after{animation:zwGlow .5s cubic-bezier(.42,0,.58,1)}
-@keyframes zwGlow{0%,100%{opacity:0}50%{opacity:1}}
+.card.flipped::before{animation:zwRing .9s cubic-bezier(.42,0,.58,1)}
+@keyframes zwRing{
+  0%  {opacity:0;transform:rotate(-90deg)}
+  8%  {opacity:1}
+  62% {opacity:1;transform:rotate(240deg)}
+  84% {opacity:.6;transform:rotate(268deg)}
+  100%{opacity:0;transform:rotate(270deg)}
+}
 
 .back-art{position:absolute;inset:0;
   background:repeating-linear-gradient(45deg,rgba(255,255,255,.045) 0 1px,transparent 1px 9px)}

@@ -36,7 +36,8 @@ struct StoreCardView: View {
     var body: some View {
         FlipCard(isFlipped: isFlipped,
                  reduceMotion: reduceMotion,
-                 cornerRadius: ZW.radiusCard) {
+                 cornerRadius: ZW.radiusCard,
+                 accent: tint) {          // 想"不剧透"就换成 .white
             back
         } front: {
             front

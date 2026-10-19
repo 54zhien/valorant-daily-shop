@@ -73,8 +73,10 @@ enum ZW {
 
     // MARK: - 动效
 
-    /// 翻牌时长
-    static let flip: Double = 0.55
+    /// 翻牌时长。
+    /// 现在是一整段编排（光跑一圈 → 抬升 → 翻转 → 落下），不是单纯翻转，
+    /// 所以比原来长：0.9s。四张错开 130ms 连起来约 1.3s。
+    static let flip: Double = 0.9
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 
@@ -84,8 +86,10 @@ enum ZW {
 
     // MARK: - 翻牌的"演出"参数（效果 1 + 3）
 
-    /// 抬升幅度：翻到一半时卡片放大多少（0.10 = 10%，要看得见）
-    static let flipLift: CGFloat = 0.10
+    /// 抬升：向上位移多少 pt（"向顶部抬升"）
+    static let flipLiftOffset: CGFloat = 7
+    /// 抬升时顺带放大多少（0.04 = 4%，和位移一起才有"离开桌面"的错觉）
+    static let flipLiftScale: CGFloat = 0.04
     /// 边缘透光的强度（**中性白**，翻之前不透露品质）
     static let flipGlow: Double = 0.85
 }
