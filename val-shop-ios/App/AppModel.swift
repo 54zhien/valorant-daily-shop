@@ -1,4 +1,4 @@
-﻿import Foundation
+import Foundation
 import Observation
 import ZhangwaKit
 
@@ -164,10 +164,22 @@ final class AppModel {
         guard session.ctUpdatedAt > 0 else { return "未知（导入时没记时间）" }
         let left = session.ctUpdatedAt + ZhangwaSession.ctLifetime
             - Date().timeIntervalSince1970
-        if left <= 0 { return "已过期，需要重新抓包" }
+        if left <= 0 { return "已过期，需要重新扫码登录" }
         let days = Int(left) / 86_400
         let hours = (Int(left) % 86_400) / 3_600
-        return days > 0 ? "还有 \(days) 天" : "还有 \(hours) 小时"
+        return days > 0 ? "还有 \(days) 天 \(hours) 小时" : "还有 \(hours) 小时"
+    }
+
+    /// 上次续期是多久以前
+    var lastRenewText: String {
+        guard session.ctUpdatedAt > 0 else { return "未知" }
+        let ago = Date().timeIntervalSince1970 - session.ctUpdatedAt
+        if ago < 60 { return "刚刚" }
+        let m = Int(ago) / 60
+        if m < 60 { return "\(m) 分钟前" }
+        let h = m / 60
+        if h < 24 { return "\(h) 小时前" }
+        return "\(h / 24) 天前"
     }
 
     var accountLabel: String {

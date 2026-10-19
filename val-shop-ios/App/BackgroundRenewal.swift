@@ -63,9 +63,13 @@ enum BackgroundRenewal {
     /// 排下一次后台刷新。系统自己决定什么时候真正执行。
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: taskID)
-        // 最早 12 小时后再叫醒我们 —— 不是 1 天，留点提前量，
-        // 万一系统推迟执行也不会踩到 7 天边界。
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 12 * 3600)
+        // 最早 6 小时后再叫醒我们。
+        //
+        // 为什么不设 1 天：这个值只是「最早什么时候」，
+        // iOS 会按用户使用习惯决定真的什么时候跑（还可能完全不跑）。
+        // 设小一点 = 在 7 天的 ct 寿命里多几次机会。
+        // 就算 iOS 一次都没跑，还有「打开 App 时自动续」那条主路径兜底。
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 6 * 3600)
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
