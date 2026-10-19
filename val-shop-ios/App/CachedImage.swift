@@ -20,8 +20,8 @@ struct CachedImage<Placeholder: View>: View {
 
     let url: URL?
     var contentMode: ContentMode
-    /// 卡面专用：按「视觉面积相同 + 高度封顶」排版
-    var artNormalize: Bool
+    /// 卡面专用：按「视觉面积相同 + 高度封顶」排版。头像之类保持 false
+    var artNormalize: Bool = false
     @ViewBuilder var placeholder: Placeholder
 
     @State private var loaded: SendableImage?
