@@ -194,7 +194,7 @@ body{
 }
 .card .flipper{
   position:absolute;inset:0;transform-style:preserve-3d;
-  transition:transform .62s cubic-bezier(.2,.8,.25,1);
+  transition:transform .5s cubic-bezier(.42,0,.58,1);
 }
 .card.flipped .flipper{transform:rotateY(180deg)}
 
@@ -433,18 +433,8 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
               <div class="slots" id="slots">
                 <!-- 四个卡背（JS 生成） -->
               </div>
-              <div class="foot">
-                <span class="machine">Line-up · 4</span>
-                <span class="grade-sum">紫×2 金×1 橙×1</span>
-                <span class="mono">合计 <b>7 550</b> VP</span>
-              </div>
             </div>
 
-          </div>
-          <div class="actions">
-            <button class="btn primary g-sm">
-              <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z"/></svg>读取今日商店
-            </button>
           </div>
           <div class="tabs">
             <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
@@ -484,18 +474,8 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
               </div>
               <div class="fuse"><div class="fill" style="width:35%"></div><div class="head-mark" style="left:35%"></div></div>
               <div class="slots" id="slots2"></div>
-              <div class="foot">
-                <span class="machine">Line-up · 4</span>
-                <span class="grade-sum">紫×2 金×1 橙×1</span>
-                <span class="mono">合计 <b>7 550</b> VP</span>
-              </div>
             </div>
 
-          </div>
-          <div class="actions">
-            <button class="btn primary g-sm">
-              <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z"/></svg>读取今日商店
-            </button>
           </div>
           <div class="tabs">
             <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
@@ -538,11 +518,6 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
               </button>
             </div>
 
-          </div>
-          <div class="actions">
-            <button class="btn primary g-sm">
-              <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>扫码登录
-            </button>
           </div>
           <div class="tabs">
             <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
@@ -873,7 +848,7 @@ function cardHTML(d, flipped){
     </div>
     <div class="face front">
       <div class="tier-band"></div>
-      <div class="tier-tag machine"><span class="dm"></span><span class="grade"></span></div>
+      <div class="tier-tag"><span class="dm"></span></div>
       ${d.已拥有 ? '<div class="已拥有 g-sm machine">已拥有</div>' : ''}
       <div class="art"><div class="glow"></div>${GUN}</div>
       <div class="meta">
@@ -894,8 +869,8 @@ function mount(id, flippedCount){
   if(!host) return;
   host.innerHTML = DEMO.map((d,i)=>cardHTML(d, i < flippedCount)).join('');
   host.querySelectorAll('.card').forEach((el,i)=>{
-    const g = el.querySelector('.grade');
-    if(g) g.textContent = GRADE[DEMO[i].tier];
+    const g = el.querySelector('.grade');   // 已去掉单字，留个空查询不影响
+
     if(i >= flippedCount){
       el.addEventListener('click', ()=>{ el.classList.add('flipped'); });
     }

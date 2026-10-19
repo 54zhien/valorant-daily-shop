@@ -5,13 +5,14 @@ import ZhangwaKit
 ///
 /// 版式按系统分组内容的做法：
 ///   NavigationStack（顶部导航栏，inline 标题）
-///     ScrollView
+///     ScrollView（下拉可刷新）
 ///       身份卡（内容卡）
 ///       出错时一条提示
-///       今日四张：小标 + 引信条 + 2×2 卡阵 + 统计行
-///     safeAreaInset(.bottom)：主按钮（控件层，系统 glassProminent）
+///       今日四张：小标 + 引信条 + 2×2 卡阵
 ///
-/// 材质：**玻璃留给控件层**（导航栏、页签栏、那颗按钮 —— 系统自己就是玻璃），
+/// 没有「读取」按钮：进来自动读一次（`loadStoreIfNeeded`），要重读就下拉。
+///
+/// 材质：**玻璃留给控件层**（导航栏、页签栏、翻开全部 —— 系统自己就是玻璃），
 /// 内容层一律用系统分组背景色，不透明。
 struct ShopView: View {
 
@@ -47,12 +48,17 @@ struct ShopView: View {
             .zwScrollEdge(.all)
             .navigationTitle("每日商店")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) { actionBar }
+            // 下拉重读：系统标准手势，不需要额外的按钮
+            .refreshable {
+                await model.loadStore()
+            }
             .sheet(isPresented: $showRolePicker) {
                 RolePickerView().environment(model)
             }
-            // 进页面拉一次角色信息（登录成功后也会由 AppModel 触发）
-            .task { await model.loadUserRole() }
+            // 进来就自动读一次；这一期已经读过就直接用现有的
+            .task {
+                await model.loadStoreIfNeeded()
+            }
         }
     }
 
@@ -137,7 +143,7 @@ struct ShopView: View {
 
     private var alertInfo: (text: String, ok: Bool)? {
         if case .failed(let msg) = model.state {
-            return ("没读到商店：\(msg)。点下面按钮再试一次。", false)
+            return ("没读到商店：\(msg)。下拉刷新再试一次。", false)
         }
         if !model.hasSession {
             return ("还没登录 —— 登录一下就能看今天的商店。", false)
@@ -182,8 +188,6 @@ struct ShopView: View {
                     }
                 }
             }
-
-            lineUpFooter
         }
     }
 
@@ -249,32 +253,9 @@ struct ShopView: View {
         }
     }
 
-    private var lineUpFooter: some View {
-        HStack(spacing: 8) {
-            Text("Line-up · \(model.snapshot.items.count)".uppercased())
-                .zwMachine(.caption2)
-            Text(model.snapshot.gradeSummary)
-
-            Spacer(minLength: 4)
-
-            Text("合计")
-            Text(ShopItem.spaced(model.snapshot.totalPrice))
-                .zwMonoStyle(.caption)
-            Text("VP")
-                .zwMachine(.caption2)
-        }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
-        .padding(.horizontal, 4)
-        .padding(.top, 12)
-        .accessibilityElement(children: .combine)
-    }
-
     // MARK: - 空态
 
-    /// 空的时候只给一步：登录，或者再读一次
+    /// 空的时候只给一步：没登录就登录；登录了就是"下拉刷新"（没有按钮可点）
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: model.hasSession ? "tray" : "qrcode")
@@ -285,52 +266,29 @@ struct ShopView: View {
                 .font(.headline)
 
             Text(model.hasSession
-                 ? "点下面的按钮再读一次。要是总读不到，到「我的」重新登录。"
+                 ? "下拉刷新再试一次。要是总读不到，到「我的」重新登录。"
                  : "用微信扫一下二维码就行，不用电脑。扫完之后会自动续期，不用每次扫。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button {
-                if model.hasSession {
-                    Task { await model.loadStore() }
-                } else {
+            // 只有「还没登录」才给按钮 —— 读取本身没有按钮了，重读就是下拉
+            if !model.hasSession {
+                Button {
                     model.loginSheet = .wechat
+                } label: {
+                    Label("扫码登录", systemImage: "qrcode")
+                        .frame(maxWidth: .infinity)
                 }
-            } label: {
-                Label(model.hasSession ? "再读一次" : "扫码登录",
-                      systemImage: model.hasSession ? "arrow.clockwise" : "qrcode")
-                    .frame(maxWidth: .infinity)
+                .buttonStyle(.glassProminent)
+                .tint(.zwRouge)
+                .controlSize(.large)
+                .padding(.top, 4)
             }
-            .buttonStyle(.glassProminent)
-            .tint(.zwRouge)
-            .controlSize(.large)
-            .padding(.top, 4)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .zwContentBackground(ZW.radiusGroup)
-    }
-
-    // MARK: - 底部的行动按钮（控件层）
-
-    private var actionBar: some View {
-        Button {
-            Task { await model.loadStore() }
-        } label: {
-            if model.state.isLoading {
-                Text("读取中…").frame(maxWidth: .infinity)
-            } else {
-                Label("读取今日商店", systemImage: "arrow.clockwise")
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .buttonStyle(.glassProminent)
-        .tint(.zwRouge)
-        .controlSize(.large)
-        .disabled(model.state.isLoading)
-        .padding(.horizontal, ZW.pad)
-        .padding(.bottom, 8)
     }
 
     // MARK: - 时间
@@ -367,20 +325,23 @@ struct ShopView: View {
         index < model.flipped.count ? model.flipped[index] : false
     }
 
+    /// 翻一张：一次干净的镜像翻转。
+    /// 曲线是 `ZW.flipCurve`（时间对称），两个面在转到 90° 那一刻换 —— 见 DesignSystem。
     private func toggleFlip(_ index: Int) {
         guard index < model.flipped.count else { return }
-        withAnimation(.spring(response: ZW.flip, dampingFraction: 0.8)) {
-            model.flipped[index].toggle()
+        let next = !flipped(at: index)
+        withAnimation(ZW.flipCurve) {
+            model.setFlipped(index, to: next)
         }
     }
 
     /// 依次翻开，错开 130ms —— 复刻掌瓦的「每日首次查看翻牌动画」
     private func flipAll() {
-        for i in 0..<model.flipped.count {
+        for i in 0..<min(4, max(model.flipped.count, 1)) {
             Task {
                 try? await Task.sleep(for: .milliseconds(i * ZW.revealStagger))
-                withAnimation(.spring(response: ZW.flip, dampingFraction: 0.8)) {
-                    if i < model.flipped.count { model.flipped[i] = true }
+                withAnimation(ZW.flipCurve) {
+                    model.setFlipped(i, to: true)
                 }
             }
         }

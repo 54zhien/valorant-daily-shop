@@ -47,34 +47,6 @@ extension ShopItem {
     }
 }
 
-extension StoreSnapshot {
-    /// 概览：这一屏四张卡加起来多少钱
-    var totalPrice: Int {
-        items.compactMap(\.price).reduce(0, +)
-    }
-
-    var ownedCount: Int {
-        items.filter(\.owned).count
-    }
-
-    /// 品质分布，形如「紫×2 金×1」——按档位从高到低排
-    var gradeSummary: String {
-        var counts: [(Rarity, Int)] = []
-        for rarity in Rarity.allCases.reversed() {
-            let n = items.filter { $0.rarity == rarity }.count
-            if n > 0 { counts.append((rarity, n)) }
-        }
-        if counts.isEmpty { return "" }
-        return counts.map { "\($0.0.cnLabel)×\($0.1)" }.joined(separator: "  ")
-    }
-
-    /// 没解析出品质档时也要有话说
-    var gradeSummaryOrDash: String {
-        let s = gradeSummary
-        return s.isEmpty ? "—" : s
-    }
-}
-
 // ============================================================================
 //  会话健康度 —— 给普通人看的一句话
 // ============================================================================

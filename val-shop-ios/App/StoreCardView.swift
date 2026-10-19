@@ -37,12 +37,11 @@ struct StoreCardView: View {
         RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous)
     }
 
-    /// 换面的时刻：旋转行程的一半（spring 的视觉中点大约在 45% 处）
-    private var swapDelay: Double { reduceMotion ? 0 : ZW.flip * 0.45 }
-    /// 换面本身是"瞬间"的，只是被推迟到侧对镜头那一刻
+    /// 换面的时刻：旋转行程的一半。
+    /// 配合 `ZW.flipCurve`（时间对称的 easeInOut），这一刻卡片正好转到 90°（侧对镜头），
+    /// 所以换面看不见 —— 正面会从"侧着"一路转正，而不是突然蹦出来。
     private var swapAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.18)
-                     : .linear(duration: 0.01).delay(swapDelay)
+        reduceMotion ? .easeInOut(duration: 0.18) : ZW.swapCurve
     }
 
     /// 卡面的反向预旋转角度。减弱动态效果时不做 3D，所以也不镜像。
@@ -134,14 +133,11 @@ struct StoreCardView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .topLeading) {
-                HStack(spacing: 6) {
-                    ZWGradeMark(tint: tint, size: 9, filled: true)
-                    Text(item.gradeGlyph)
-                        .zwMachine(.caption2)
-                }
-                .foregroundStyle(tint)
-                .padding(.leading, 12)
-                .padding(.top, 10)
+                // 品质只用一个钻标表示，不再配「紫 / 金 / 橙」那个字。
+                // 文字版留在无障碍标签里（VoiceOver 仍然念得出档位）。
+                ZWGradeMark(tint: tint, size: 9, filled: true)
+                    .padding(.leading, 12)
+                    .padding(.top, 10)
             }
             .overlay(alignment: .topTrailing) {
                 if item.owned {

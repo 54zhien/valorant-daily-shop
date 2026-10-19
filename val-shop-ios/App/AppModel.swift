@@ -124,6 +124,8 @@ final class AppModel {
         applySession(s)
         // 刚拿到登录态，顺手把游戏 ID 拉出来显示
         Task { await loadUserRole() }
+        // 登录完直接读今天的商店 —— 界面上已经没有「读取」按钮了
+        Task { await loadStore() }
         push("扫码登录成功：userID=\(s.userID.isEmpty ? "?" : s.userID)"
              + "，ct \(s.ct.isEmpty ? "无" : "有")，有效期 7 天（会自动续）")
     }
@@ -559,7 +561,8 @@ final class AppModel {
         await loadUserRole()
 
         state = .loading
-        flipped = [false, false, false, false]
+        // 注意：**不要**在这里把 flipped 清空。清空会让已经翻开的卡先合上再翻，
+        // 画面会闪一下。等新数据到了由 restoreFlippedFlags() 一次性定。
 
         // ct 有效期 7 天，但过期前用旧的换一张新的就能一直滚下去。
         // 顺手在这里续一次，用户就不需要关心「什么时候该重新抓包」。
@@ -579,6 +582,7 @@ final class AppModel {
             snapshot = snap
             state = .loaded
             lastLoadedAt = Date()
+            restoreFlippedFlags()
             push("商店读取成功，\(snap.items.count) 件商品")
             if snap.items.isEmpty {
                 push("没解析出商品，原始字段：\(snap.rawKeys.joined(separator: ", "))")
@@ -587,6 +591,65 @@ final class AppModel {
             state = .failed(error.localizedDescription)
             push("读取失败：\(error.localizedDescription)")
         }
+    }
+
+    /// 进 App 自动读一次 —— 但**这一期已经读到过就不重复读**。
+    ///
+    /// "这一期"用 `snapshot.expiresAt`（= 下一次刷新点）判定：它还没到，
+    /// 手上这份就是当前这一期的商店，没必要再打一次接口。
+    func loadStoreIfNeeded() async {
+        guard hasSession else { return }
+        let fresh = !snapshot.items.isEmpty
+            && (snapshot.expiresAt.map { $0 > Date() } ?? false)
+        if fresh {
+            push("这一期已经读过了，直接用现有的")
+            await loadUserRole()          // 名字/段位还是很便宜地刷一下
+            restoreFlippedFlags()
+            return
+        }
+        await loadStore()                 // 里面会先刷角色再拉商店
+    }
+
+    // MARK: - 翻牌状态的记忆
+    //
+    //  "翻过就不再翻一遍"：记的是**这一期商店**（期号 + 商品 id）的状态，
+    //  明天 8 点刷新后期号变了，自然就回到全部卡背。
+
+    private static let kFlipped = "zw.flippedPeriod"
+
+    /// 这一期商店的标识：刷新时间所在的日期 + 四件商品的 id
+    private var flipPeriodKey: String {
+        let day = Calendar.current.startOfDay(for: snapshot.expiresAt ?? Date())
+        let ids = snapshot.items.map(\.id).joined(separator: "|")
+        return "\(Int(day.timeIntervalSince1970))#\(ids)"
+    }
+
+    /// 从本地恢复「这一期翻过没」。翻过的直接呈现翻开状态。
+    func restoreFlippedFlags() {
+        var flags = [false, false, false, false]     // 固定四格，和 2×2 卡阵对齐
+        if let rec = UserDefaults.standard.dictionary(forKey: Self.kFlipped),
+           rec["key"] as? String == flipPeriodKey,
+           let bits = rec["flags"] as? String {
+            for (i, ch) in bits.enumerated() where i < flags.count {
+                flags[i] = (ch == "1")
+            }
+        }
+        flipped = flags
+    }
+
+    /// 记下这一期的翻牌状态。翻一张存一次，杀进程再进也还在。
+    private func persistFlippedFlags() {
+        guard !snapshot.items.isEmpty else { return }
+        let bits = flipped.map { $0 ? "1" : "0" }.joined()
+        UserDefaults.standard.set(["key": flipPeriodKey, "flags": bits],
+                                  forKey: Self.kFlipped)
+    }
+
+    /// 翻一张（视图负责包 `withAnimation`）
+    func setFlipped(_ index: Int, to value: Bool) {
+        guard index < flipped.count else { return }
+        flipped[index] = value
+        persistFlippedFlags()
     }
 
     func probe() async {
@@ -642,7 +705,7 @@ final class AppModel {
             rawKeys: ["demo"],
             rawJSON: "{}")
         state = .loaded
-        flipped = [false, false, false, false]
+        restoreFlippedFlags()
         lastLoadedAt = Date()
         push("已载入演示数据（真实抓包里的商品名，但价格/品质只是样例）")
     }
