@@ -78,16 +78,16 @@ enum ZW {
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 
-    /// 翻牌的动画曲线。
-    ///
-    /// ⚠️ **必须是时间对称的**（easeInOut），因为两个面是在 `flip / 2` 那一刻换的。
-    /// 只有对称曲线能保证"换面的瞬间"正好是转到 90°（卡片侧对镜头、看不见）。
-    /// 换成 spring 的话中点不确定：早一拍，正面在斜着的时候就露出来；晚一拍，
-    /// 卡都摆正了内容才"啪"地蹦出来 —— 就是之前那个毛病。
+    /// 翻牌曲线。时间对称即可（easeInOut）——
+    /// 换面现在由 `progress ≥ 0.5` 决定（见 FlipCard），不再依赖曲线中点。
     static var flipCurve: Animation { .easeInOut(duration: flip) }
 
-    /// 换面本身：瞬间完成，只是推迟到 90° 那一刻
-    static var swapCurve: Animation { .linear(duration: 0.001).delay(flip / 2) }
+    // MARK: - 翻牌的"演出"参数（效果 1 + 3）
+
+    /// 抬升幅度：翻到一半时卡片放大多少（0.06 = 6%）
+    static let flipLift: CGFloat = 0.06
+    /// 边缘透光的强度（**中性白**，翻之前不透露品质）
+    static let flipGlow: Double = 0.55
 }
 
 // ============================================================================

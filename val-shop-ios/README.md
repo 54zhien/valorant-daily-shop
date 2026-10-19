@@ -42,7 +42,8 @@ val-shop-ios/
 │   ├─ LiquidGlass.swift          ★ 全项目唯一直接调 iOS 26 玻璃 API 的文件 + 品牌底
 │   ├─ AppModel.swift             @Observable + @MainActor
 │   ├─ ShopView.swift             身份条 + 入荷板（引信条）+ 主按钮 ← 普通人的主界面
-│   ├─ StoreCardView.swift        玻璃翻牌卡：卡背序号 + 卡面品质斜带/钻标 + 底部压字
+│   ├─ FlipCard.swift            ★ 翻牌容器：一个进度值驱动旋转/换面/抬升/投影/边缘透光
+│   ├─ StoreCardView.swift        卡片内容：卡背序号 + 卡面品质钻标 + 画 + 信息块
 │   ├─ ProfileView.swift          「我的」：状态 / 扫码登录 / 角色 / 退出 / 关于
 │   ├─ DiagnosticsView.swift      ★ 诊断台（List，入口在「我的 → 关于 → 诊断」）
 │   ├─ EndpointsView.swift        抓包接口清单（诊断台里的子页）
@@ -262,22 +263,28 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 
 四张的面积基本一致（约 6 178 pt²），高度差从 2.7× 收到 1.8×。
 
-### 翻牌动效：回到最早那版，并修掉叠影
+### 翻牌动效：一个进度值驱动全部效果
 
-动效就是你最早喜欢的那一版，没换：
+不再是"旋转一段 + 延迟换面一段"，而是 `FlipCard.swift` 里**一个 `progress: 0→1`**，
+其余全是它的函数：
 
-- 整张卡绕 Y 轴转 180°，`spring(response: 0.55, dampingFraction: 0.8)`
-- 四张依次翻开，错开 `130ms`（复刻掌瓦的每日首次查看动画）
-- 开「减弱动态效果」时不转 3D，改成交叉淡入
+| 效果 | 公式 |
+|---|---|
+| 绕 Y 轴翻转 | `progress × 180°`（`reduceMotion` 时恒 0） |
+| **换面** | `progress ≥ 0.5` —— 0.5 时卡片必然侧对镜头，数学上不会错 |
+| **抬升**（效果 1） | `1 + 0.06 × sin(π·p)` |
+| **投影**（效果 1） | `sin(π·p)`，半径与不透明度同时长 |
+| **边缘透光**（效果 3） | `0.55 × sin(π·p)`，**中性白 —— 翻之前不透露品质** |
 
-**修掉的 bug**：旧版两个面的 `opacity` 跟着旋转**同时**动画，导致前半程能看到
-正面的镜像叠在卡背上（闪一下 / 叠影）。现在两个面在「转到 90°」那一刻瞬间切换
-（`.linear(duration: 0.01).delay(ZW.flip * 0.45)`）—— 那一刻卡片正好侧对镜头，
-切换是看不见的。见 `StoreCardView.swift` 的 `swapAnimation`。
+`sin(π·p)` 两端为 0、中点最大，所以三个效果天生同步：抬起来的同时边缘亮、投影变散，
+翻到正面时全部归零 —— 不需要各自对时间。而且**可逆**：翻到一半再点，进度从当前值往回走。
 
-> 顺带一句：玻璃卡片之间的 morph 效果没了。原因是卡片现在是**内容**，
-> 内容层不上玻璃（规矩三）。想要 morph 就得让卡片回到控件层，那就破了规矩三。
-> 你说要哪个，我改哪个。
+四张依次翻开，错开 `130ms`。开「减弱动态效果」时不做 3D，进度直接当透明度用（纯交叉淡入）。
+
+> `animatableData` 必须显式 `nonisolated`（本项目默认隔离是 MainActor）。
+> 验算台：[`probe/animatable_probe.swift`](probe/animatable_probe.swift)，三种写法 + 一组会失败的对照。
+
+> 玻璃卡片之间的 morph 效果没了。卡片现在是**内容**，内容层不上玻璃（规矩三）。
 
 ### token 在哪（`App/DesignSystem.swift`）
 

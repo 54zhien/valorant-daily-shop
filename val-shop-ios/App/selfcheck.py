@@ -153,7 +153,8 @@ print("=== 7) 设计系统一致性 ===")
 for rel, why in [("val-shop-ios/design/preview.html", "设计预览台（视觉事实来源）"),
                  ("val-shop-ios/design/shoot.ps1", "预览台截图脚本"),
                  ("val-shop-ios/App/DesignSystem.swift", "SwiftUI 侧 token 层"),
-                 ("val-shop-ios/probe/isolation_probe.swift", "并发隔离实验台")]:
+                 ("val-shop-ios/probe/isolation_probe.swift", "并发隔离实验台"),
+    ("val-shop-ios/probe/animatable_probe.swift", "Animatable 隔离实验台")]:
     p = ROOT / rel
     print(f"  {'OK  ' if p.exists() else 'MISS'} {rel}   ({why})")
     if not p.exists():

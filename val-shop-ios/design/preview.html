@@ -211,6 +211,21 @@ body{
 }
 .card .face.front{transform:rotateY(180deg)}
 
+/* 翻牌的"演出"：抬升 + 投影 + 边缘透光（中性白，不剧透品质）
+   和 App 侧 FlipCard.swift 的 sin(π·p) 曲线对应：两端归零、中段最大 */
+.card.flipped{animation:zwLift .5s cubic-bezier(.42,0,.58,1)}
+@keyframes zwLift{
+  0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(0,0,0,0)}
+  50%{transform:scale(1.06);box-shadow:0 10px 22px rgba(0,0,0,.45)}
+}
+.card::after{
+  content:"";position:absolute;inset:-1px;border-radius:var(--r-card);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);
+  opacity:0;pointer-events:none;
+}
+.card.flipped::after{animation:zwGlow .5s cubic-bezier(.42,0,.58,1)}
+@keyframes zwGlow{0%,100%{opacity:0}50%{opacity:1}}
+
 .back-art{position:absolute;inset:0;
   background:repeating-linear-gradient(45deg,rgba(255,255,255,.045) 0 1px,transparent 1px 9px)}
 .slot-no{position:absolute;top:10px;left:12px;font-size:11px;color:var(--label-3);letter-spacing:.1em}
