@@ -123,5 +123,42 @@ for rel in [".github/workflows/ios.yml",
     print(f"  {'OK  ' if p.exists() else 'MISS'} {rel}")
 
 print()
+print("=== 6) Swift 语法体检 ===")
+# 本机是 Windows，编译不了 SwiftUI（没有 Apple SDK），但 `-parse` 只查语法、
+# 不需要模块，能把「括号不配对 / 引号被 shell 吃掉 / 少了逗号」这类错误挡在推之前。
+import shutil
+import subprocess
+
+swiftc = shutil.which("swiftc")
+app_dir = ROOT / "val-shop-ios" / "App"
+sources = sorted(p.name for p in app_dir.glob("*.swift"))
+
+if not swiftc:
+    print("  跳过：本机没有 swiftc")
+elif not sources:
+    fail("App/ 下没有 .swift 文件")
+else:
+    r = subprocess.run([swiftc, "-parse"] + sources,
+                       cwd=str(app_dir), capture_output=True, text=True)
+    if r.returncode == 0:
+        print(f"  OK   {len(sources)} 个文件 swiftc -parse 通过")
+    else:
+        fail("swiftc -parse 报错：")
+        print((r.stderr or r.stdout)[:2000])
+
+print()
+print("=== 7) 设计系统一致性 ===")
+# 视觉事实来源是 design/preview.html；这边只做最低限度的存在性检查，
+# 免得改了 HTML 忘了它。
+for rel, why in [("val-shop-ios/design/preview.html", "设计预览台（视觉事实来源）"),
+                 ("val-shop-ios/design/shoot.ps1", "预览台截图脚本"),
+                 ("val-shop-ios/App/DesignSystem.swift", "SwiftUI 侧 token 层"),
+                 ("val-shop-ios/probe/isolation_probe.swift", "并发隔离实验台")]:
+    p = ROOT / rel
+    print(f"  {'OK  ' if p.exists() else 'MISS'} {rel}   ({why})")
+    if not p.exists():
+        ok = False
+
+print()
 print("RESULT:", "全部通过" if ok else "有失败项")
 sys.exit(0 if ok else 1)

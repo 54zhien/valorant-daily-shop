@@ -1,0 +1,223 @@
+import SwiftUI
+
+// ============================================================================
+//  设计系统 —— 只保留「文档没规定、但项目需要统一」的那点东西
+// ============================================================================
+//
+//  ── 按 Apple 文档的划分 ────────────────────────────────────────────────
+//
+//  颜色：**不用自绘色板**。
+//    · 文字层级用系统语义色 `.primary` / `.secondary` / `.tertiary`
+//      （自动适配深色、浅色、增强对比度，见 HIG Color）
+//    · 内容底色用系统语义背景 `Color(.systemBackground)` /
+//      `.secondarySystemGroupedBackground`（表单/卡片用它，见 HIG Lists and tables）
+//    · 输入区用 `.tertiarySystemFill`
+//    · 品牌色（红 / 青绿）放 Assets.xcassets 的 colorset，用名字取
+//      —— HIG 明确要求颜色定义在资产目录里，不要在代码里写 RGB
+//
+//  字体：**不用写死的点数**。
+//    · 全部走 Dynamic Type 的文本样式（`.caption2` / `.footnote` / `.subheadline`…），
+//      用户把系统字号调大，界面跟着长
+//    · 只在这里允许两处「腔调」：机器腔（压缩宽度）和数据腔（等宽数字），
+//      都是在系统字体上加 weight / width，不引入第三方字体
+//
+//  材质：**玻璃只用在控件层**（HIG Materials）。
+//    · TabBar / NavigationBar / sheet / 浮动按钮 —— 系统已经帮你做了
+//    · 内容层（卡片、列表行、板子）一律不透明：系统背景色 + 分组背景色
+//
+//  形状：品质钻与卡背斜纹是本项目自绘的（游戏资源的形状语言），
+//        放在这里，并附几何验算台 probe/geometry_probe.swift
+//
+//  ── 并发隔离约定（改形状之前先看）──────────────────────────────────────
+//  本项目开了 SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor。自定义 Shape 的
+//  `path(in:)` 是 nonisolated 要求，**只能读实例属性**，不能读 static 常量。
+//  实验台：probe/isolation_probe.swift
+// ============================================================================
+
+enum ZW {
+
+    // MARK: - 几何（文档没规定，只是项目内的统一常数）
+
+    /// 卡片 / 分组容器圆角
+    static let radiusGroup: CGFloat = 16
+    /// 卡片圆角
+    static let radiusCard: CGFloat = 20
+    /// 小控件（头像 / 图标）
+    static let radiusControl: CGFloat = 11
+
+    /// 发丝线
+    static let hairline: CGFloat = 1
+
+    /// 页边距 / 块间距
+    static let pad: CGFloat = 16
+    static let gap: CGFloat = 12
+    static let gapLoose: CGFloat = 18
+
+    /// 内容最大宽度：iPad 上别把 2×2 卡阵拉成两米宽
+    static let boardMaxWidth: CGFloat = 520
+
+    /// 身份条头像
+    static let avatar: CGFloat = 38
+
+    // MARK: - 动效
+
+    /// 翻牌时长
+    static let flip: Double = 0.62
+    /// 四张卡错开的间隔（毫秒）
+    static let revealStagger: Int = 130
+}
+
+// ============================================================================
+//  MARK: - 品牌色（资产目录）
+// ============================================================================
+//
+//  只有两个颜色是「品牌」而不是「语义」：
+//    zwRouge —— VALORANT 红，主行动 / 告警
+//    zwSignal —— 青绿，已拥有 / 在线
+//  其余一律交给系统语义色。品质五档不是色板，是**服务端数据**
+//  （`Rarity.colorHex`，取自掌瓦 ic_val_goods_quality_1..5），所以留在模型里。
+
+extension Color {
+    static let zwRouge = Color("zwRouge")
+    static let zwSignal = Color("zwSignal")
+}
+
+// `.foregroundStyle(.zwRouge)` 这种写法要求成员挂在 ShapeStyle 上，
+// 光有 extension Color 不够（SwiftUI 内置的 .blue / .red 也是声明两份）。
+extension ShapeStyle where Self == Color {
+    static var zwRouge: Color { .zwRouge }
+    static var zwSignal: Color { .zwSignal }
+}
+
+// ============================================================================
+//  MARK: - 形状（自绘）
+// ============================================================================
+
+/// 品质钻：旋转 45° 的方框（掌瓦 `ic_val_goods_quality_1..5` 的形状语言）
+struct ZWDiamond: Shape {
+
+    /// 内缩比例：0 = 实心菱形，0.34 = 方框
+    let inset: CGFloat
+
+    init(inset: CGFloat = 0) {
+        self.inset = inset
+    }
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        // 只读实例属性 + CGRect 自带的值（隔离要求，见文件头）
+        let r = min(rect.width, rect.height) / 2 * (1 - inset)
+        let cx = rect.midX
+        let cy = rect.midY
+        var p = Path()
+        p.move(to: CGPoint(x: cx, y: cy - r))
+        p.addLine(to: CGPoint(x: cx + r, y: cy))
+        p.addLine(to: CGPoint(x: cx, y: cy + r))
+        p.addLine(to: CGPoint(x: cx - r, y: cy))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// 45° 斜纹：卡背的磨砂纹，以及没有卡面图时的占位
+struct ZWHatchTexture: Shape {
+
+    let pitch: CGFloat
+
+    init(pitch: CGFloat = 9) {
+        self.pitch = pitch
+    }
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        var p = Path()
+        guard pitch > 0 else { return p }
+        // 从左上外侧起步，一路铺到右下，保证覆盖整个矩形
+        var x = rect.minX - rect.height
+        while x < rect.maxX {
+            p.move(to: CGPoint(x: x, y: rect.maxY))
+            p.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+            x += pitch
+        }
+        return p
+    }
+}
+
+/// 一颗品质钻：外框或实心
+struct ZWGradeMark: View {
+    let tint: Color
+    var size: CGFloat = 14
+    var filled: Bool = false
+
+    var body: some View {
+        ZStack {
+            if filled {
+                ZWDiamond().fill(tint)
+            } else {
+                ZWDiamond(inset: 0.30).stroke(tint, lineWidth: 2)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+// ============================================================================
+//  MARK: - 内容容器（不透明，不是玻璃）
+// ============================================================================
+
+extension View {
+
+    /// 内容块底：系统的分组背景色。
+    /// 卡片、板子、身份条都用它 —— 玻璃是控件层的材质，内容层保持不透明。
+    func zwContentBackground(_ radius: CGFloat = ZW.radiusGroup) -> some View {
+        background(Color(.secondarySystemGroupedBackground),
+                   in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
+// ============================================================================
+//  MARK: - 字体（Dynamic Type）
+// ============================================================================
+
+extension Font {
+
+    /// 机器腔：拉丁压缩大写。**只用于拉丁小标**（`DAILY STORE` / `VP`）——
+    /// 中文没有压缩变体，拿它排中文只会变小不会变窄。
+    /// ⚠️ `Font.width(_:)` 是 iOS 16+；万一某版 SDK 上签名变了，只改这一行。
+    static func zwMachine(_ style: Font.TextStyle = .caption2) -> Font {
+        .system(style).weight(.heavy).width(.compressed)
+    }
+
+    /// 数据腔：等宽数字（价格、倒计时、接口路径）
+    static func zwMono(_ style: Font.TextStyle = .callout,
+                       weight: Font.Weight = .semibold) -> Font {
+        .system(style, design: .monospaced).weight(weight)
+    }
+}
+
+/// 机器腔 / 数据腔 —— 都定义在 **Text** 上。
+///
+/// `.kerning(_:)` 和 `.monospacedDigit()` 在 SwiftUI 里是 **Text** 的方法
+/// （View 级的文本修饰器是 iOS 16 才补的，名字也不完全一样）。
+/// 两种腔调永远只落在 Text 上，所以直接用 Text 的方法，少一层版本不确定性。
+extension Text {
+
+    /// 机器腔：压缩大写 + 字距（调用方自己 `.uppercased()`）
+    func zwMachine(_ style: Font.TextStyle = .caption2,
+                   tracking: CGFloat = 1.4) -> Text {
+        font(.zwMachine(style)).kerning(tracking)
+    }
+
+    /// 数据腔：等宽数字（价格/倒计时滚动时不会左右跳）
+    func zwMonoStyle(_ style: Font.TextStyle = .callout,
+                     weight: Font.Weight = .semibold) -> Text {
+        font(.zwMono(style, weight: weight)).monospacedDigit()
+    }
+}
+
+extension View {
+
+    /// 只要机器腔的字形、不要字距 —— 给 Button / 容器这类不是 Text 的宿主用
+    func zwMachineFont(_ style: Font.TextStyle = .caption2) -> some View {
+        font(.zwMachine(style))
+    }
+}

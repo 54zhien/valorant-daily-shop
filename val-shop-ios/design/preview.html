@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>每日商店 · UI 大改 · 设计预览</title>
+<style>
+/* ==========================================================================
+   每日商店 · 设计预览台（按 Apple 文档那一版）
+   --------------------------------------------------------------------------
+   这一版和上一版最大的区别：**玻璃只留在控件层**。
+
+     · 内容（卡片 / 分组 / 身份卡）—— 系统分组背景色，不透明
+     · 控件（导航栏 / 页签栏 / 按钮）—— 玻璃，由系统提供
+
+   下面的色值就是 iOS 深色模式下的系统真值（App 里 Info.plist 声明了
+   UIUserInterfaceStyle = Dark，所以取的就是深色那一套）：
+
+     systemBackground                 #000000
+     secondarySystemGroupedBackground #1C1C1E
+     tertiarySystemFill               rgba(118,118,128,.24)
+     separator                        rgba(84,84,88,.65)
+     label / secondaryLabel / tertiaryLabel  #FFF / rgba(235,235,245,.6) / rgba(235,235,245,.3)
+
+   文字一律用上面这三个 label 语义色，不自己配色 —— 这样「增强对比度」
+   之类的系统开关才会跟着生效。
+   ========================================================================== */
+
+:root{
+  /* ---- 系统语义色 ---- */
+  --system-bg:#000000;
+  --grouped-bg:#1C1C1E;
+  --fill:rgba(118,118,128,.24);
+  --label:#FFFFFF;
+  --label-2:rgba(235,235,245,.60);
+  --label-3:rgba(235,235,245,.30);
+  --separator:rgba(84,84,88,.65);
+
+  /* ---- 品牌色（资产目录里的两个 colorset）---- */
+  --rouge:#FF4655;
+  --signal:#00E0C6;
+
+  /* ---- 品质五档：服务端数据，不可改 ---- */
+  --q1:#4A90D9; --q2:#3AC58A; --q3:#A85CE0; --q4:#E07A20; --q5:#E0B020;
+
+  /* ---- 控件层玻璃（系统提供）---- */
+  --bar-material:rgba(30,30,32,.72);
+  --bar-blur:blur(24px) saturate(1.8);
+
+  /* ---- 圆角：分组容器 12 / 卡片 20 / 小控件 11 ---- */
+  --r-group:12px;
+  --r-card:20px;
+  --r-control:11px;
+  --pad:16px;
+  --gap:12px;
+
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:#1a1a1c;color:var(--label);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* 内容块：不透明系统底 + 圆角（不是玻璃） */
+.g-fill{
+  /* 注意：这里**不要**写 position:relative。
+     它和 .card .face 的 position:absolute 会互相打架（单类选择器、靠书写顺序分胜负），
+     一旦 .g-fill 赢了，两个卡面就从"叠在一起"变成"上下排开" → 内容会溢出到隔壁卡片。 */
+  background:var(--grouped-bg);
+}
+.g-lg{border-radius:var(--r-group);overflow:hidden}
+.g-sm{border-radius:var(--r-group);overflow:hidden}
+
+/* ---------- 页面外壳 ---------- */
+.page{max-width:1360px;margin:0 auto;padding:40px 28px 96px}
+.kicker{
+  font:800 11px/1 "Arial Narrow",-apple-system,"Helvetica Neue",sans-serif;
+  font-stretch:condensed;letter-spacing:.22em;text-transform:uppercase;color:var(--rouge);
+}
+.page h1{font-size:30px;margin:10px 0 4px;letter-spacing:.01em;font-weight:700}
+.page .lede{color:var(--label-2);font-size:13px;margin:0 0 6px;max-width:66ch}
+.page .hintline{color:var(--label-3);font-size:12px;margin:0}
+
+.rail{display:flex;flex-wrap:wrap;gap:34px 30px;margin:38px 0 8px;align-items:flex-start}
+.slot{width:390px}
+.slot h2{font-size:13px;margin:0 0 2px;font-weight:650;letter-spacing:.02em}
+.slot .note{color:var(--label-2);font-size:11.5px;margin:0 0 12px;min-height:32px}
+
+/* ---------- 手机壳 ---------- */
+.device{
+  width:390px;height:844px;border-radius:52px;padding:11px;position:relative;
+  background:linear-gradient(150deg,#2A343E,#0D141A 42%,#1A2229);
+  box-shadow:0 30px 70px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.10);
+}
+.screen{
+  width:100%;height:100%;border-radius:42px;overflow:hidden;position:relative;
+  background:var(--system-bg);      /* 系统背景：内容不透明，背景就是纯色 */
+  display:flex;flex-direction:column;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+}
+.island{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:112px;height:30px;border-radius:16px;background:#000;z-index:40;
+}
+.statusbar{
+  height:54px;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 26px 5px;font:600 12.5px/1 -apple-system,sans-serif;color:var(--label);
+  flex:0 0 auto;
+}
+.statusbar .right{display:flex;gap:3px;align-items:flex-end;opacity:.7}
+.statusbar .right i{background:var(--label);display:block}
+.statusbar .right i.bar{width:3px;border-radius:1px}
+.statusbar .right i.bat{width:20px;height:9px;border:1.5px solid var(--label);background:transparent;border-radius:2px;margin-left:4px;position:relative}
+.statusbar .right i.bat::after{content:"";position:absolute;inset:1.5px 7px 1.5px 1.5px;background:var(--label)}
+
+.body{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.scroll{flex:1;min-height:0;overflow-y:auto;padding:0 var(--pad) 8px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+
+/* ---------- 导航栏（控件层：玻璃，系统提供）---------- */
+.navbar{
+  flex:0 0 auto;height:44px;display:flex;align-items:center;justify-content:center;
+  position:relative;background:var(--bar-material);
+  backdrop-filter:var(--bar-blur);-webkit-backdrop-filter:var(--bar-blur);
+  border-bottom:1px solid var(--separator);
+}
+.navbar .ntitle{font-size:16px;font-weight:600}
+.navbar .nback{position:absolute;left:12px;font-size:19px;color:var(--signal)}
+.navbar .naction{position:absolute;right:14px;font-size:15px;color:var(--signal)}
+
+/* ---------- 打字机腔：拉丁压缩大写字 ---------- */
+.machine{
+  font-family:"Arial Narrow",-apple-system,"Helvetica Neue",Arial,sans-serif;
+  font-stretch:condensed;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+}
+.mono{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ==========================================================================
+   ① 身份条（内容卡）
+   ========================================================================== */
+.idbar{
+  display:flex;align-items:center;gap:12px;padding:12px;margin-top:2px;
+}
+.idbar .av{
+  width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:var(--r-control);
+  background:var(--fill);
+  font:700 15px/1 -apple-system,sans-serif;color:var(--label);
+}
+.idbar .who{min-width:0;flex:1}
+.idbar .gid{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idbar .sub{font-size:12px;color:var(--label-2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.swap{font-size:9px;color:var(--label-3);margin-left:5px}
+
+/* 状态：只说人话 */
+.status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--signal);flex:0 0 auto}
+.status .dot{width:7px;height:7px;transform:rotate(45deg);border-radius:2px;background:currentColor}
+.status .dot.off{background:var(--label-2)}
+.status.warn{color:var(--rouge)}
+
+/* ==========================================================================
+   ② 今日四张（分组内容：小标 + 引信条 + 卡阵 + 统计）
+   ========================================================================== */
+.board{margin-top:8px}
+.board .head{display:flex;align-items:center;gap:10px;padding:0 2px 6px}
+.board .head .t{font-size:11px;color:var(--label-2)}
+.board .head .c{font-size:12px;color:var(--label-2)}
+.board .head .row{display:flex;align-items:center;gap:10px;margin-left:auto}
+
+/* 控件层的次级按钮：系统 .glass 样式 */
+.board .head .act{
+  font-size:12px;color:var(--label);cursor:pointer;padding:6px 12px;border-radius:999px;
+  background:rgba(120,120,128,.28);border:1px solid rgba(255,255,255,.10);
+}
+.board .head .act:disabled{opacity:.45}
+
+/* 引信条 */
+.fuse{position:relative;height:2px;margin:0 2px 8px;border-radius:2px;background:var(--fill)}
+.fuse .fill{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--rouge);transition:width .6s linear}
+
+.slots{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);perspective:1100px}
+
+/* ---------- 卡（内容，不透明）---------- */
+/* 卡片：外壳只负责尺寸和底，旋转交给里面的 .flipper 一层（3D 上下文只存在于这一层） */
+.card{
+  position:relative;aspect-ratio:6/7;background:var(--grouped-bg);border-radius:var(--r-card);
+  cursor:pointer;
+}
+.card .flipper{
+  position:absolute;inset:0;transform-style:preserve-3d;
+  transition:transform .62s cubic-bezier(.2,.8,.25,1);
+}
+.card.flipped .flipper{transform:rotateY(180deg)}
+
+/* 卡面：反向预旋转 180°（外层再转 180° 就正好是正的）
+   裁切用 clip-path，不用 overflow:hidden ——
+   overflow 会把这个面变成"分组"元素，在 3D 上下文里会干扰背面剔除，
+   表现就是翻过来看到镜像的字。 */
+.card .face{
+  position:absolute;inset:0;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;flex-direction:column;
+  border-radius:var(--r-card);background:var(--grouped-bg);
+  clip-path:inset(0 round var(--r-card));
+}
+.card .face.front{transform:rotateY(180deg)}
+
+.back-art{position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,.045) 0 1px,transparent 1px 9px)}
+.slot-no{position:absolute;top:10px;left:12px;font-size:11px;color:var(--label-3);letter-spacing:.1em}
+.back-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.diamond{width:30px;height:30px;transform:rotate(45deg);border:2px solid var(--label-3);border-radius:5px;position:relative}
+.diamond::after{content:"";position:absolute;inset:6px;border:2px solid var(--label-3);border-radius:3px;opacity:.5}
+.tap{font-size:10px;color:var(--label-3)}
+
+.tier-band{position:absolute;top:0;left:0;right:0;height:56px;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--tier) 24%,transparent),transparent 74%);pointer-events:none}
+.tier-tag{position:absolute;top:10px;left:12px;display:flex;align-items:center;gap:6px;
+  font-size:10px;letter-spacing:.1em;color:var(--tier)}
+.tier-tag .dm{width:9px;height:9px;transform:rotate(45deg);border-radius:2px;background:var(--tier);flex:0 0 9px}
+.art{position:absolute;inset:0 0 34% 0;display:grid;place-items:center;padding:6px 10px 0}
+.art svg{width:88%;height:auto;color:color-mix(in srgb,var(--tier) 45%,var(--label));opacity:.55}
+.已拥有{position:absolute;top:10px;right:10px;font-size:10px;padding:3px 8px;border-radius:999px;
+  color:var(--signal);background:rgba(0,224,198,.18)}
+.meta{
+  position:absolute;left:0;right:0;bottom:0;padding:10px 12px;
+  border-top:1px solid var(--separator);
+}
+.meta .nm{font-size:13px;font-weight:600;line-height:1.25;height:33px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.meta .wp{font-size:10px;color:var(--label-2);letter-spacing:.06em;margin-top:2px;height:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.meta .pr{display:flex;align-items:baseline;gap:4px;margin-top:5px}
+.meta .pr b{font-size:17px;font-weight:600}
+.meta .pr span{font-size:10px;color:var(--label-2)}
+
+.board .foot{
+  display:flex;align-items:center;gap:8px;justify-content:space-between;
+  padding:10px 4px 0;font-size:11px;color:var(--label-2);
+}
+.board .foot b{color:var(--label);font-weight:600;font-size:12px}
+.board .foot .grade-sum{color:var(--label-3)}
+
+/* ==========================================================================
+   ③ 底部：主按钮 + 页签（都是控件层，玻璃由系统提供）
+   ========================================================================== */
+.actions{display:flex;gap:10px;padding:10px var(--pad) 12px}
+.btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:0;cursor:pointer;
+  padding:15px 12px;border-radius:999px;font-size:15px;font-weight:600;
+  color:var(--label);background:rgba(120,120,128,.30);
+  backdrop-filter:var(--bar-blur);-webkit-backdrop-filter:var(--bar-blur);
+}
+.btn.primary{background:var(--rouge);color:#fff}
+.btn:disabled{opacity:.5}
+.btn svg{width:16px;height:16px;flex:0 0 16px;fill:currentColor}
+
+.tabs{
+  flex:0 0 auto;display:flex;padding:8px 0 18px;
+  background:var(--bar-material);backdrop-filter:var(--bar-blur);
+  -webkit-backdrop-filter:var(--bar-blur);
+  border-top:1px solid var(--separator);
+}
+.tabs .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--label-2)}
+.tabs .tab.on{color:var(--rouge)}
+.tabs svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7}
+
+/* ==========================================================================
+   ④ 提示 / 空态
+   ========================================================================== */
+.alert{
+  display:flex;align-items:center;gap:10px;margin-top:10px;padding:12px 14px;border-radius:var(--r-group);
+  background:rgba(255,69,58,.16);font-size:12px;color:#FFB4AC;
+}
+.alert.ok{background:rgba(0,224,198,.16);color:#9BF0E4}
+
+.empty{margin-top:12px;padding:18px}
+.empty .mark{font-size:22px;color:var(--label-2);margin-bottom:10px}
+.empty h3{font-size:17px;margin:0 0 6px;font-weight:600}
+.empty p{margin:0;color:var(--label-2);font-size:13px;line-height:1.6}
+
+/* ==========================================================================
+   ⑤ Sheet / 次级页面
+   ========================================================================== */
+.sheet-head{
+  flex:0 0 auto;height:44px;display:flex;align-items:center;justify-content:center;gap:10px;
+  position:relative;background:var(--bar-material);
+  backdrop-filter:var(--bar-blur);-webkit-backdrop-filter:var(--bar-blur);
+  border-bottom:1px solid var(--separator);
+}
+.sheet-head .ttl{font-size:16px;font-weight:600}
+.grabber{width:38px;height:4px;border-radius:2px;background:var(--fill);margin:8px auto 0}
+.iconbtn{width:30px;height:30px;display:grid;place-items:center;border-radius:999px;cursor:pointer;
+  background:var(--fill)}
+.iconbtn svg{width:15px;height:15px;fill:none;stroke:var(--label);stroke-width:1.9}
+
+.group{margin-top:14px}
+.group .gh{font-size:11px;color:var(--label-2);margin:0 0 6px 4px}
+.rows{padding:0}
+.row{
+  display:flex;align-items:center;gap:10px;padding:12px 14px;
+  border-bottom:1px solid var(--separator);font-size:14px;
+}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--label-2);flex:0 0 auto;min-width:96px}
+.row .v{flex:1;text-align:right;color:var(--label);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .v.mono{font-size:12px}
+.row .chev{color:var(--label-3);font-size:14px}
+.row.tap{cursor:pointer}
+.row.tap:active{background:rgba(120,120,128,.20)}
+.row .ic-qr{font-size:14px;color:var(--signal);width:20px;display:inline-grid;place-items:center}
+.row.danger{color:var(--rouge)}
+.tag{font-size:10px;padding:3px 8px;border-radius:999px;color:var(--rouge);background:rgba(255,70,85,.18)}
+.tag.ok{color:var(--signal);background:rgba(0,224,198,.18)}
+.logbox{
+  margin:12px 14px;padding:12px;border-radius:10px;background:var(--fill);
+  font-size:11px;line-height:1.8;color:var(--label-2);
+  max-height:168px;overflow:auto;
+}
+.logbox .t{color:var(--label-3)}
+.logbox .ok{color:var(--signal)}
+.logbox .bad{color:var(--rouge)}
+.honest{
+  margin-top:12px;padding:12px 14px;border-radius:var(--r-group);font-size:12px;line-height:1.7;
+  color:#FFB4AC;background:rgba(255,69,58,.14);
+}
+
+/* 账号卡 */
+.account{display:flex;align-items:center;gap:14px;padding:16px}
+.account .acct-av{width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center;border-radius:14px;
+  background:var(--fill);font:700 20px/1 -apple-system,sans-serif;color:var(--label)}
+.account .acct-who{min-width:0;flex:1}
+.account .gid{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.account .sub{font-size:13px;color:var(--label-2);margin-top:3px}
+.account .status{flex-direction:column;gap:5px;align-items:flex-end}
+
+/* ---------- 扫码登录 ---------- */
+.login-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 26px}
+.qr{
+  position:relative;width:236px;height:236px;margin:0 auto;padding:13px;border-radius:var(--r-card);background:#fff;
+  box-shadow:0 12px 30px rgba(0,0,0,.5);
+}
+.qr canvas{display:block;width:100%;height:100%;image-rendering:pixelated;border-radius:8px}
+.lcorner{position:absolute;width:22px;height:22px;border:3px solid var(--rouge);border-radius:6px}
+.lcorner.tl{top:-4px;left:-4px;border-right:0;border-bottom:0}
+.lcorner.tr{top:-4px;right:-4px;border-left:0;border-bottom:0}
+.lcorner.bl{bottom:-4px;left:-4px;border-right:0;border-top:0}
+.lcorner.br{bottom:-4px;right:-4px;border-left:0;border-top:0}
+.stage{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:20px;font-size:14px}
+.stage .d{width:8px;height:8px;transform:rotate(45deg);border-radius:2px;background:var(--signal)}
+.stage .d.wait{background:var(--rouge);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.login-tip{margin-top:10px;text-align:center;font-size:12px;color:var(--label-2);line-height:1.7}
+
+/* ==========================================================================
+   ⑥ Token 板
+   ========================================================================== */
+.spec{margin-top:64px;border-top:1px solid var(--separator);padding-top:30px}
+.spec h2{font-size:19px;margin:0 0 4px}
+.spec .sub{color:var(--label-2);font-size:12.5px;margin:0 0 26px}
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:26px}
+.spec-card{padding:18px;background:var(--grouped-bg);border-radius:var(--r-group)}
+.spec-card h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--label-2);margin:0 0 14px;font-weight:700}
+.sw{display:flex;align-items:center;gap:11px;margin-bottom:9px;font-size:12px}
+.sw i{width:34px;height:34px;flex:0 0 34px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.sw code{font-size:11.5px;color:var(--label-2)}
+.sw b{font-weight:600;min-width:64px}
+.trow{border-top:1px solid var(--separator);padding:11px 0}
+.trow:first-of-type{border-top:0}
+.trow .sample{margin-bottom:3px}
+.trow code{font-size:10.5px;color:var(--label-3)}
+.geo{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.geo .box{width:88px;height:62px;display:grid;place-items:center;font-size:10px;color:var(--label-2);
+  background:var(--fill);border-radius:12px}
+.geo .box.capsule{border-radius:999px}
+.note-list{font-size:12px;color:var(--label-2);line-height:1.85;padding-left:18px;margin:0}
+.note-list b{color:var(--label)}
+footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top:1px solid var(--separator);padding-top:20px}
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="kicker">Valorant · 每日商店 · iOS</div>
+  <h1>UI 大改 · 入荷板（Liquid Glass）</h1>
+  <p class="lede">
+    把「四张卡」从电商列表里救出来，做成一块值班板：时间不再是旁边一个数字，而是板顶上一条会烧过去的引信；
+    品质不再是一行小字，而是书脊、斜带和一颗钻。
+    材质是 <b>Liquid Glass</b> —— 玻璃铺在控制层和内容层，靠透明度的层次和 20pt 以上的间距区分层级。
+    所有开发工具搬进「维护台」，首页只留看商店这一件事。
+  </p>
+  <p class="hintline">下面 7 个界面都是真的：<b>点卡片可以翻开</b>，倒计时在走。</p>
+
+  <div class="rail">
+
+    <!-- ================= ① 商店 · 未翻开 ================= -->
+    <div class="slot">
+      <h2>① 每日商店（默认）</h2>
+      <p class="note">身份条（状态只说人话）+ 入荷板。四张卡面朝下等你点。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>07:58</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar"><div class="ntitle">每日商店</div></div>
+          <div class="scroll">
+
+            <div class="idbar g-lg g-fill">
+              <div class="av g-sm">天</div>
+              <div class="who">
+                <div class="gid">天天开心#26170<span class="swap">⇅</span></div>
+                <div class="sub">钻石 III · Lv183</div>
+              </div>
+              <div class="status"><span class="dot ok"></span>已登录</div>
+            </div>
+
+            <div class="board">
+              <div class="head">
+                <div class="t machine">Daily Store</div>
+                <div class="row">
+                  <div class="c mono live" id="clk">16:47:13</div>
+                  <button class="act machine g-sm" id="flipall">翻开全部</button>
+                </div>
+              </div>
+              <div class="fuse">
+                <div class="fill" id="fuse" style="width:30%"></div>
+                <div class="head-mark" id="fusehead" style="left:30%"></div>
+              </div>
+              <div class="slots" id="slots">
+                <!-- 四个卡背（JS 生成） -->
+              </div>
+              <div class="foot">
+                <span class="machine">Line-up · 4</span>
+                <span class="grade-sum">紫×2 金×1 橙×1</span>
+                <span class="mono">合计 <b>7 550</b> VP</span>
+              </div>
+            </div>
+
+          </div>
+          <div class="actions">
+            <button class="btn primary g-sm">
+              <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z"/></svg>读取今日商店
+            </button>
+          </div>
+          <div class="tabs">
+            <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
+            <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c0-3.9 3.4-6.4 7.5-6.4s7.5 2.5 7.5 6.4"/></svg>我的</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= ② 商店 · 已翻开 ================= -->
+    <div class="slot">
+      <h2>② 每日商店（翻开后）</h2>
+      <p class="note">品质色斜带 + 钻标；已拥有的在右上角标出来。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>07:59</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar"><div class="ntitle">每日商店</div></div>
+          <div class="scroll">
+
+            <div class="idbar g-lg g-fill">
+              <div class="av g-sm">天</div>
+              <div class="who">
+                <div class="gid">天天开心#26170<span class="swap">⇅</span></div>
+                <div class="sub">钻石 III · Lv183</div>
+              </div>
+              <div class="status"><span class="dot ok"></span>已登录</div>
+            </div>
+
+            <div class="board">
+              <div class="head">
+                <div class="t machine">Daily Store</div>
+                <div class="row">
+                  <div class="c mono live">15:41:22</div>
+                  <button class="act machine g-sm">翻开全部</button>
+                </div>
+              </div>
+              <div class="fuse"><div class="fill" style="width:35%"></div><div class="head-mark" style="left:35%"></div></div>
+              <div class="slots" id="slots2"></div>
+              <div class="foot">
+                <span class="machine">Line-up · 4</span>
+                <span class="grade-sum">紫×2 金×1 橙×1</span>
+                <span class="mono">合计 <b>7 550</b> VP</span>
+              </div>
+            </div>
+
+          </div>
+          <div class="actions">
+            <button class="btn primary g-sm">
+              <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.3 0 6 2.7 6 6s-2.7 6-6 6-6-2.7-6-6H4c0 4.4 3.6 8 8 8s8-3.6 8-8-3.6-8-8-8z"/></svg>读取今日商店
+            </button>
+          </div>
+          <div class="tabs">
+            <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
+            <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c0-3.9 3.4-6.4 7.5-6.4s7.5 2.5 7.5 6.4"/></svg>我的</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= ③ 空态 ================= -->
+    <div class="slot">
+      <h2>③ 空态 / 出错</h2>
+      <p class="note">空的时候只给一步：登录，或者再读一次。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>08:02</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar"><div class="ntitle">每日商店</div></div>
+          <div class="scroll">
+
+            <div class="idbar g-lg g-fill">
+              <div class="av g-sm" style="color:var(--dim)">?</div>
+              <div class="who">
+                <div class="gid" style="color:var(--dim)">未登录</div>
+                <div class="sub">点下面按钮，用微信扫一下就行</div>
+              </div>
+              <div class="status"><span class="dot off"></span>未登录</div>
+            </div>
+
+            <div class="alert g-sm">
+              还没登录 —— 登录一下就能看今天的商店
+            </div>
+
+            <div class="empty g-lg g-fill">
+              <div class="mark"></div>
+              <h3>登录一下就能看今天的商店</h3>
+              <p>用微信扫一下二维码就行，不用电脑。<br>扫完之后会自动续期，不用每次扫。</p>
+              <button class="btn primary g-sm" style="width:100%;margin-top:18px">
+                <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>扫码登录
+              </button>
+            </div>
+
+          </div>
+          <div class="actions">
+            <button class="btn primary g-sm">
+              <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>扫码登录
+            </button>
+          </div>
+          <div class="tabs">
+            <div class="tab on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7V5a3 3 0 016 0v2"/></svg>商店</div>
+            <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6"/><path d="M4.5 20c0-3.9 3.4-6.4 7.5-6.4s7.5 2.5 7.5 6.4"/></svg>我的</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= ④ 维护台 ================= -->
+    <div class="slot">
+      <h2>④ 诊断台（普通用户看不到）</h2>
+      <p class="note">入口：我的 → 关于 → 长按版本号 2.5 秒。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>08:01</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="grabber"></div>
+          <div class="navbar">
+            <div class="ntitle">诊断台</div>
+            <div class="naction">完成</div>
+          </div>
+          <div class="scroll" style="padding-top:4px">
+
+            <div class="group">
+              <div class="gh machine">Last Read · 上次读取</div>
+              <div class="rows g-sm g-fill">
+                <div class="row"><span class="k">结果</span><span class="v"><span class="tag ok">成功</span> 4 件商品</span></div>
+                <div class="row"><span class="k">时间</span><span class="v mono">07:58:41</span></div>
+                <div class="row"><span class="k">接口</span><span class="v mono">/go/mlol_store/…/user_store</span></div>
+                <div class="row"><span class="k">刷新于</span><span class="v mono">08:00:00（本地）</span></div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="gh machine">Actions · 动作</div>
+              <div class="rows g-sm g-fill">
+                <div class="row tap"><span style="flex:1">读取今日商店</span><span class="chev">›</span></div>
+                <div class="row tap"><span style="flex:1">刷新票据 ct / wt</span><span class="chev">›</span></div>
+                <div class="row tap"><span style="flex:1">探测候选路径</span><span class="chev">›</span></div>
+                <div class="row tap"><span style="flex:1">恢复默认接口</span><span class="chev">›</span></div>
+                <div class="row tap"><span style="flex:1">载入演示数据</span><span class="chev">›</span></div>
+                <div class="row tap"><span style="flex:1">导出诊断信息</span><span class="chev">›</span></div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="gh machine">Log · 运行日志</div>
+              <div class="logbox mono">
+                <div><span class="t">08:00:12</span> 登录态已自动续期</div>
+                <div><span class="t">08:00:12</span> <span class="ok">✅ ct 已续期，又是 7 天</span></div>
+                <div><span class="t">07:58:41</span> 商店读取成功，4 件商品</div>
+                <div><span class="t">07:58:40</span> 用 ct 换新 wt …</div>
+                <div><span class="t">07:58:40</span> <span class="ok">✅ get_web_ticket 成功，tid 已更新</span></div>
+                <div><span class="t">07:55:02</span> <span class="bad">❌ get_web_ticket 失败 —— 重试第 1 次</span></div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="rows g-sm g-fill">
+                <div class="row tap"><span style="flex:1;color:var(--rouge)">清除会话</span><span class="chev">›</span></div>
+              </div>
+            </div>
+
+            <div class="honest g-sm">
+              日志在真机上就是唯一的排错窗口（自签装没有 Xcode 控制台）。所以它从首页搬到这里，但一条也没少。
+            </div>
+
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= ⑤ 接口 ================= -->
+    <div class="slot">
+      <h2>⑤ 抓包接口（诊断台里的子页）</h2>
+      <p class="note">上百条 /go/ 接口里一眼挑出商店那条。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>08:04</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar">
+            <div class="nback">‹</div>
+            <div class="ntitle">抓到的接口</div>
+          </div>
+          <div class="scroll" style="padding-top:12px">
+            <div class="rows g-sm g-fill" style="border-left:3px solid var(--signal)">
+              <div class="row" style="display:block;padding:13px">
+                <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px">
+                  <span class="tag">POST</span>
+                  <span class="tag ok">疑似商店</span>
+                </div>
+                <div class="mono" style="font-size:11.5px;color:var(--bone)">/go/mlol_store/agame/user_store</div>
+                <div class="mono" style="font-size:10.5px;color:var(--dim);margin-top:5px">body {}</div>
+                <div class="mono" style="font-size:10.5px;color:var(--dimmer);margin-top:3px">resp result:0 · 4 件</div>
+                <button class="btn ghost g-sm" style="margin-top:10px;padding:8px;font-size:12px">设为商店接口</button>
+              </div>
+            </div>
+
+            <div class="rows g-sm g-fill" style="margin-top:10px">
+              <div class="row" style="display:block;padding:13px">
+                <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px"><span class="tag">POST</span></div>
+                <div class="mono" style="font-size:11.5px">/go/auth/login_by_qq</div>
+                <div class="mono" style="font-size:10.5px;color:var(--dim);margin-top:5px">body {"openid":"…"}</div>
+              </div>
+            </div>
+
+            <div class="rows g-sm g-fill" style="margin-top:10px">
+              <div class="row" style="display:block;padding:13px">
+                <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px"><span class="tag">GET</span></div>
+                <div class="mono" style="font-size:11.5px">/go/agame/user/game_roles</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= ⑥ 我的 ================= -->
+    <div class="slot">
+      <h2>⑥ 我的</h2>
+      <p class="note">普通人只有三个动作：看状态 / 扫码登录 / 退出。排障入口藏在「长按版本号」里，界面上不写出来。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>08:05</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar"><div class="ntitle">我的</div></div>
+          <div class="scroll" style="padding-top:14px">
+
+            <div class="account g-lg g-fill">
+              <div class="acct-av">天</div>
+              <div class="acct-who">
+                <div class="gid">天天开心#26170</div>
+                <div class="sub">钻石 III · Lv183</div>
+              </div>
+              <div class="status"><span class="dot ok"></span>已登录</div>
+            </div>
+
+            <div class="group">
+              <div class="gh machine">Login · 登录</div>
+              <div class="rows g-sm g-fill">
+                <div class="row tap"><span class="ic-qr">▣</span><span style="flex:1">微信扫码登录</span><span class="chev">›</span></div>
+                <div class="row tap"><span class="ic-qr">▣</span><span style="flex:1">QQ 扫码登录</span><span class="chev">›</span></div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="gh machine">Role · 当前角色</div>
+              <div class="rows g-sm g-fill">
+                <div class="row tap"><span class="ic-qr">◇</span><span style="flex:1">天天开心#26170</span><span class="chev">›</span></div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="rows g-sm g-fill">
+                <div class="row tap danger">退出登录</div>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="gh machine">About · 关于</div>
+              <div class="rows g-sm g-fill">
+                <div class="row"><span class="k">版本</span><span class="v mono">1.0 (1)</span></div>
+                <div class="row"><span class="k">数据来源</span><span class="v">掌上无畏契约（同源接口）</span></div>
+                <div class="row tap"><span class="ic-qr" style="color:var(--label-2)">◇</span><span style="flex:1">诊断</span><span class="chev">›</span></div>
+                <div class="row" style="color:var(--label-2);font-size:12px">只用来读你自己账号的每日商店。</div>
+              </div>
+            </div>
+
+
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <!-- ================= ⑦ 扫码登录 ================= -->
+    <div class="slot">
+      <h2>⑦ 扫码登录</h2>
+      <p class="note">取景框 + 状态钻，一屏只做一件事。</p>
+      <div class="device"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>08:06</span><span class="right"><i class="bar" style="height:5px"></i><i class="bar" style="height:7px"></i><i class="bar" style="height:9px"></i><i class="bar" style="height:11px"></i><i class="bat"></i></span></div>
+        <div class="body">
+          <div class="navbar">
+            <div class="ntitle">微信扫码登录</div>
+            <div class="naction">关闭</div>
+          </div>
+          <div class="login-wrap">
+            <div class="qr">
+              <canvas id="qrc" width="29" height="29"></canvas>
+              <div class="lcorner tl"></div><div class="lcorner tr"></div>
+              <div class="lcorner bl"></div><div class="lcorner br"></div>
+            </div>
+            <div class="stage"><span class="d wait"></span>等待扫码…</div>
+            <div class="login-tip">用微信扫一下这个码，在手机上确认。<br>确认后 App 会自己拿到 ct，7 天内不用再管。</div>
+          </div>
+          <div class="actions">
+            <button class="btn ghost g-sm" style="flex:0 0 auto;padding:13px 18px">‹</button>
+            <button class="btn ghost g-sm">换一张码</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <!-- ================= Token 板 ================= -->
+  <section class="spec">
+    <h2>Token 板</h2>
+    <p class="sub">SwiftUI 侧一一对应：<code>App/DesignSystem.swift</code>。品质五色来自掌瓦资源，其余是这套板子的自有色。</p>
+
+    <div class="spec-grid">
+
+      <div class="spec-card">
+        <h3>Color · 板面色</h3>
+        <div class="sw"><i style="background:#0A131B"></i><b>ink</b><code>#0A131B</code></div>
+        <div class="sw"><i style="background:#101C27"></i><b>board</b><code>#101C27</code></div>
+        <div class="sw"><i style="background:#16232F"></i><b>boardHi</b><code>#16232F</code></div>
+        <div class="sw"><i style="background:#22323F"></i><b>steel</b><code>#22323F</code></div>
+        <div class="sw"><i style="background:#ECE8E1"></i><b>bone</b><code>#ECE8E1</code></div>
+        <div class="sw"><i style="background:#7C8B99"></i><b>dim</b><code>#7C8B99</code></div>
+        <div class="sw"><i style="background:#FF4655"></i><b>rouge</b><code>#FF4655</code></div>
+        <div class="sw"><i style="background:#00E0C6"></i><b>signal</b><code>#00E0C6</code></div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Grade · 品质五档（不可改）</h3>
+        <div class="sw"><i style="background:#4A90D9"></i><b>blue</b><code>#4A90D9 · 蓝</code></div>
+        <div class="sw"><i style="background:#3AC58A"></i><b>green</b><code>#3AC58A · 绿</code></div>
+        <div class="sw"><i style="background:#A85CE0"></i><b>purple</b><code>#A85CE0 · 紫</code></div>
+        <div class="sw"><i style="background:#E07A20"></i><b>orange</b><code>#E07A20 · 橙</code></div>
+        <div class="sw"><i style="background:#E0B020"></i><b>yellow</b><code>#E0B020 · 金</code></div>
+        <p style="font-size:11.5px;color:var(--dim);margin:14px 0 0;line-height:1.7">
+          取自 <code>ic_val_goods_quality_1..5.png</code>。<br>
+          形状也用同一套语言：<b>旋转 45° 的方框</b>。
+        </p>
+      </div>
+
+      <div class="spec-card">
+        <h3>Type · 三个角色</h3>
+        <div class="trow">
+          <div class="sample machine" style="font-size:13px;color:var(--rouge)">Daily Store · Line-up</div>
+          <code>机器腔：SF Compressed / 800 / 字距 .15em / 全大写（只用于拉丁小标）</code>
+        </div>
+        <div class="trow">
+          <div class="sample mono" style="font-size:20px">16:47:13 &nbsp; 1 290</div>
+          <code>数据腔：SF Mono / 等宽数字（价格、倒计时、ID、接口路径）</code>
+        </div>
+        <div class="trow">
+          <div class="sample" style="font-size:15px;font-weight:650">金角生辉 判官</div>
+          <code>人话腔：系统字体（中文标题、按钮、说明）</code>
+        </div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Radius · 圆角 / 玻璃配方</h3>
+        <div class="geo">
+          <div class="box g-lg g-fill">22</div>
+          <div class="box g-sm g-fill">12</div>
+          <div class="box capsule g-fill">胶囊</div>
+          <div class="box" style="background:transparent;box-shadow:inset 0 0 0 1px var(--glass-line)">发丝线 1px</div>
+        </div>
+        <p style="font-size:11.5px;color:var(--dim);margin:14px 0 0;line-height:1.8">
+          玻璃只有一条配方：<b>渐变填充 + 22px 模糊 + 内侧 1px 顶光</b>；圆角三档 22 / 16 / 12。<br>
+          间距：块间 12 / 页边 16 / <b>玻璃之间 ≥ 20</b>（Apple 的硬建议，太近会有光学干扰）。
+          字压在玻璃上时，底部垫一层压暗渐层保证可读性。
+        </p>
+      </div>
+
+      <div class="spec-card">
+        <h3>Motion · 动效</h3>
+        <ul class="note-list">
+          <li><b>翻开</b>：绕 Y 轴 180°，spring 0.55 / 0.8，四张错开 130ms</li>
+          <li><b>品质点亮</b>：斜带宽度 0 → 100%，180ms，跟在翻到 90° 之后</li>
+          <li><b>引信</b>：每秒推进，linear；数字用等宽滚动过渡</li>
+          <li><b>降级</b>：开了「减弱动态效果」→ 翻牌改成 120ms 交叉淡入</li>
+        </ul>
+      </div>
+
+      <div class="spec-card">
+        <h3>What changed · 留下了什么</h3>
+        <ul class="note-list">
+          <li>首页常驻<b>日志面板</b> → 维护台</li>
+          <li>首页三颗开发按钮 → 维护台</li>
+          <li>「已连接」玻璃胶囊 → <b>票据弹药条</b>（7 格 = ct 的 7 天）</li>
+          <li>独立倒计时玻璃块 → 并入板顶，变成<b>引信条</b></li>
+          <li>卡片：玻璃保留，版面从"缩略图 + 元信息"改成<b>满幅画 + 底部压字</b></li>
+          <li>背景：MeshGradient 保留，光斑挪到边角，卡片区留干净</li>
+          <li>字体三腔（机器腔 / 数据腔 / 人话腔）与无障碍标签</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="pagefoot">
+    每日商店 · 设计预览（离线单文件，无 CDN）。数据是 <code>AppModel.loadDemo()</code> 里那四条真实的商品名。
+  </footer>
+</div>
+
+<script>
+/* ==========================================================================
+   预览台的活体部分：卡牌生成 / 翻牌 / 倒计时 / 假二维码
+   —— 只为把动效放进眼睛里，不是产品代码。
+   ========================================================================== */
+
+const DEMO = [
+  {no:'01', name:'金角生辉 判官',        weapon:'判官 / SHERIFF', price:1290, tier:'--q3', 已拥有:false},
+  {no:'02', name:'荆刺链刃',            weapon:'近战 / MELEE',   price:3180, tier:'--q4', 已拥有:true },
+  {no:'03', name:'天界神兵//2.0 奥丁',  weapon:'奥丁 / ODIN',    price:1290, tier:'--q3', 已拥有:false},
+  {no:'04', name:'ORA x 颗秒 狂徒',      weapon:'狂徒 / VANDAL',  price:1790, tier:'--q5', 已拥有:false},
+];
+
+const GUN = `<svg viewBox="0 0 220 96"><path d="M6 46h96l12-12h26l7 7h40l6 5-6 5h-40l-7 7h-26L102 46H6z"/><path d="M66 56h30l12 20h-19z"/><path d="M58 38h20v9H58z"/><path d="M150 34h22v6h-22z"/></svg>`;
+
+function cardHTML(d, flipped){
+  const tier = `var(${d.tier})`;
+  return `
+  <div class="card ${flipped?'flipped':''}" style="--tier:${tier}">
+   <div class="flipper">
+    <div class="face back">
+      <div class="back-art"></div>
+      <div class="back-frame"></div>
+      <div class="slot-no mono">${d.no}</div>
+      <div class="back-center">
+        <div class="diamond"></div>
+        <div class="tap machine">Tap</div>
+      </div>
+    </div>
+    <div class="face front">
+      <div class="tier-band"></div>
+      <div class="tier-tag machine"><span class="dm"></span><span class="grade"></span></div>
+      ${d.已拥有 ? '<div class="已拥有 g-sm machine">已拥有</div>' : ''}
+      <div class="art"><div class="glow"></div>${GUN}</div>
+      <div class="meta">
+        <div class="nm">${d.name}</div>
+        <div class="wp machine">${d.weapon}</div>
+        <div class="pr"><b class="mono">${d.price.toLocaleString('en-US').replace(/,/g,' ')}</b><span class="machine">VP</span></div>
+      </div>
+    </div>
+   </div>
+  </div>`;
+}
+
+/* 档位中文名 —— 卡上只用中文一个字，拉丁档位名留在 token 板里 */
+const GRADE = {'--q1':'蓝','--q2':'绿','--q3':'紫','--q4':'橙','--q5':'金'};
+
+function mount(id, flippedCount){
+  const host = document.getElementById(id);
+  if(!host) return;
+  host.innerHTML = DEMO.map((d,i)=>cardHTML(d, i < flippedCount)).join('');
+  host.querySelectorAll('.card').forEach((el,i)=>{
+    const g = el.querySelector('.grade');
+    if(g) g.textContent = GRADE[DEMO[i].tier];
+    if(i >= flippedCount){
+      el.addEventListener('click', ()=>{ el.classList.add('flipped'); });
+    }
+  });
+}
+
+mount('slots', 0);
+mount('slots2', 4);
+
+/* 翻开全部：错开 130ms —— 和 SwiftUI 里 flipAll() 的节奏一致 */
+document.getElementById('flipall')?.addEventListener('click', ()=>{
+  document.querySelectorAll('#slots .card').forEach((el,i)=>{
+    setTimeout(()=>el.classList.add('flipped'), i*130);
+  });
+});
+
+/* 引信：60433 秒，每秒推进 */
+let left = 60433;
+const TOTAL = 86400;
+const clk = document.getElementById('clk');
+const fuse = document.getElementById('fuse');
+const head = document.getElementById('fusehead');
+function tick(){
+  left = Math.max(0, left - 1);
+  const h = String(Math.floor(left/3600)).padStart(2,'0');
+  const m = String(Math.floor(left%3600/60)).padStart(2,'0');
+  const s = String(left%60).padStart(2,'0');
+  if(clk) clk.textContent = `${h}:${m}:${s}`;
+  const p = (1 - left/TOTAL) * 100;
+  if(fuse) fuse.style.width = p.toFixed(2)+'%';
+  if(head) head.style.left = p.toFixed(2)+'%';
+}
+setInterval(tick, 1000); tick();
+
+/* 假二维码：确定性图案，只为占位 */
+(function(){
+  const c = document.getElementById('qrc');
+  if(!c) return;
+  const ctx = c.getContext('2d');
+  const N = 29;
+  ctx.fillStyle = '#ECE8E1'; ctx.fillRect(0,0,N,N);
+  ctx.fillStyle = '#0A131B';
+  let seed = 20261019;
+  const rnd = ()=> (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    if(x<8&&y<8) continue;
+    if(x>N-9&&y<8) continue;
+    if(x<8&&y>N-9) continue;
+    if(rnd() > .52) ctx.fillRect(x,y,1,1);
+  }
+  const eye = (ox,oy)=>{ ctx.fillRect(ox,oy,7,7); ctx.fillStyle='#ECE8E1'; ctx.fillRect(ox+1,oy+1,5,5);
+                         ctx.fillStyle='#0A131B'; ctx.fillRect(ox+2,oy+2,3,3); };
+  eye(0,0); eye(N-7,0); eye(0,N-7);
+})();
+</script>
+</body>
+</html>

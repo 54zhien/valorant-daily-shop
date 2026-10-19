@@ -22,6 +22,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!--
+	  这个 App 只做深色外观（商店页的视觉本来就是游戏那套深底）。
+	  按文档**明确声明**，而不是让系统在浅色模式下把导航栏、表单、输入框
+	  刷成白的，跟内容打架。
+	      关闭视图控制器自己的 appearance 切换
+	-->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 	<!-- 让 App 的 Documents 出现在「文件」App 里。
 	     自签装的 App 没有 Xcode 控制台，抓包文件靠 AirDrop → 文件 → 丢进来 → 一键扫描导入。 -->
 	<key>UIFileSharingEnabled</key>

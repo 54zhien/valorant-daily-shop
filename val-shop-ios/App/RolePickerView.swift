@@ -10,6 +10,8 @@ import ZhangwaKit
 //
 //  列的是 `gameRoles.selectableRoles`，只含端游角色：
 //  这个 App 看的是端游每日商店，切到手游角色会让人以为商店数据会跟着变。
+//
+//  用系统的 `List` + 勾选行，不做自绘卡片。
 // ============================================================================
 
 struct RolePickerView: View {
@@ -18,67 +20,56 @@ struct RolePickerView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(model.availableRoles, id: \.identityKey) { role in
-                        row(role)
+            List(model.availableRoles, id: \.identityKey) { role in
+                Button {
+                    model.selectRole(role)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        avatar(role)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(role.displayName)
+                                .font(.subheadline.weight(isSelected(role) ? .semibold : .regular))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Text(subtitle(role))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        if isSelected(role) {
+                            Image(systemName: "checkmark")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.tint)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected(role) ? [.isSelected] : [])
             }
-            .background(ZWBrandBackdrop())
             .navigationTitle("切换角色")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
                 }
             }
         }
         .presentationDetents([.medium])
     }
 
-    private func row(_ role: UserRole) -> some View {
-        let selected = role.identityKey == model.userRole?.identityKey
-        return Button {
-            model.selectRole(role)
-            dismiss()
-        } label: {
-            HStack(spacing: 12) {
-                avatar(role)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(role.displayName)
-                        .font(.body.weight(selected ? .semibold : .regular))
-                        .lineLimit(1)
-                    Text(subtitle(role))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                if selected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.zwMint)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .glassEffect(selected ? .regular.tint(.zwMint.opacity(0.18)) : .regular,
-                     in: .rect(cornerRadius: 16))
+    private func isSelected(_ role: UserRole) -> Bool {
+        role.identityKey == model.userRole?.identityKey
     }
 
     private func avatar(_ role: UserRole) -> some View {
         ZStack {
-            Circle().fill(.white.opacity(0.12))
+            Color(.tertiarySystemFill)
             if !role.icon.isEmpty, let url = URL(string: role.icon) {
                 AsyncImage(url: url) { phase in
                     if case .success(let img) = phase {
@@ -92,13 +83,13 @@ struct RolePickerView: View {
             }
         }
         .frame(width: 40, height: 40)
-        .clipShape(.circle)
+        .clipShape(Circle())
     }
 
     private func initial(_ role: UserRole) -> some View {
         Text(String(role.displayName.prefix(1)))
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.85))
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.secondary)
     }
 
     /// 段位 · 等级 · 大区

@@ -25,6 +25,9 @@ final class AppModel {
     private(set) var endpoints: [CaptureImporter.Endpoint] = []
     private(set) var log: [String] = []
 
+    /// 上次成功读到商店的时间。维护台要显示它，不然「这次到底读没读成功」只能靠翻日志。
+    private(set) var lastLoadedAt: Date?
+
     /// 四张卡是否已翻开
     var flipped: [Bool] = [false, false, false, false]
 
@@ -95,7 +98,7 @@ final class AppModel {
     ///
     /// 扫码拿到的是**全新的 ct + wt**（和抓包拿到的是同一个东西），
     /// 所以不用做任何特殊处理 —— 交给现有的 ct 滚动续期机制养着就行。
-    /// 扫码登录界面开不开。放在 model 上而不是 SettingsView 的 @State —— 
+    /// 扫码登录界面开不开。放在 model 上而不是某个页面的 @State —— 
     /// 设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet（iOS 上不稳）。
     /// 挂到根视图就永远只有一层。
     /// 登录方式。用一个 enum 驱动**唯一一个** sheet。
@@ -206,6 +209,19 @@ final class AppModel {
         let h = m / 60
         if h < 24 { return "\(h) 小时前" }
         return "\(h / 24) 天前"
+    }
+
+    /// ct 还剩几天 —— 首页那条 7 格「票据弹药条」用。
+    ///
+    /// nil 表示没有 ct（或导入时没记时间），界面要显式说出这个区别：
+    /// 「没有 ct」和「有 ct 但快到期」是两件完全不同的事。
+    var ctDaysLeft: Int? {
+        guard !session.ct.isEmpty else { return nil }
+        guard session.ctUpdatedAt > 0 else { return nil }
+        let left = session.ctUpdatedAt + ZhangwaSession.ctLifetime
+            - Date().timeIntervalSince1970
+        guard left > 0 else { return 0 }
+        return max(0, min(7, Int(ceil(left / 86_400))))
     }
 
     /// 当前登录用户的游戏角色（游戏 ID、段位、等级、卡面）
@@ -562,6 +578,7 @@ final class AppModel {
             let snap = StoreNormalizer.normalize(raw)
             snapshot = snap
             state = .loaded
+            lastLoadedAt = Date()
             push("商店读取成功，\(snap.items.count) 件商品")
             if snap.items.isEmpty {
                 push("没解析出商品，原始字段：\(snap.rawKeys.joined(separator: ", "))")
@@ -626,6 +643,7 @@ final class AppModel {
             rawJSON: "{}")
         state = .loaded
         flipped = [false, false, false, false]
+        lastLoadedAt = Date()
         push("已载入演示数据（真实抓包里的商品名，但价格/品质只是样例）")
     }
 

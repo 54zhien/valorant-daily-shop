@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 
 @main
 struct ZhangwaShopApp: App {
@@ -20,7 +20,8 @@ struct ZhangwaShopApp: App {
     }
 }
 
-/// 三个页签。iOS 26 的玻璃 TabBar 由系统提供，不要自己画背景。
+/// 两个页签 —— 就两件事：看商店、管账号。
+/// iOS 26 的玻璃 TabBar 由系统提供，不要自己画背景。
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -33,19 +34,15 @@ struct RootView: View {
             Tab("商店", systemImage: "bag.fill") {
                 ShopView()
             }
-            Tab("接口", systemImage: "list.bullet.rectangle") {
-                EndpointsView()
-            }
-            Tab("设置", systemImage: "gearshape.fill") {
-                SettingsView()
+            Tab("我的", systemImage: "person.crop.circle") {
+                ProfileView()
             }
         }
-        // 向下滚动时 TabBar 收起，把屏幕让给内容
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tint(.zwAccent)
-        // ★ 扫码登录挂在这儿（**根视图**），不是挂在设置页里。
-        //   设置页自己可能就是 sheet，再往里弹一层会变成嵌套 sheet —— iOS 上不稳，
-        //   之前 .fileImporter 就是栽在这上面。挂根上永远只有一层。
+        .tint(.zwRouge)
+        // ★ 扫码登录挂在这儿（**根视图**），不是挂在「我的」里。
+        //   「我的」自己可能就是 sheet（诊断台），再往里弹一层会变成嵌套 sheet ——
+        //   iOS 上不稳，之前 .fileImporter 就是栽在这上面。挂根上永远只有一层。
         .sheet(item: $model.loginSheet) { which in
             switch which {
             case .wechat: QRLoginView().environment(model)

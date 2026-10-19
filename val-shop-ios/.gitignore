@@ -17,4 +17,12 @@ ZhangwaShop.xcodeproj/
 # 注意：App/BundledConfig.plist 是要入库的（只放商店路径，不放凭据），
 # CI 会覆写它。凭据一律在手机上导入，不要提交。
 
+# swift test 在 Windows 上会在包根留下这两个（资源包 staging 的副产物，
+# 真正的 fixture 在 Tests/ZhangwaKitTests/Fixtures/ 里，是入库的）
+ZhangwaKit/Info.plist
+ZhangwaKit/daily_store_real.json
+
+# 预览台渲染出来的整页大图（七张单机位图是入库的，这张每次重跑都变）
+design/shots/page@*.png
+
 .DS_Store

@@ -65,14 +65,18 @@ struct QQLoginView: View {
                               })
                     .ignoresSafeArea(edges: .bottom)
                 } else {
-                    ProgressView("正在准备…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 10) {
+                        ProgressView()
+                        Text("正在准备…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
                 statusBar
                 if !diag.isEmpty { diagPanel }
             }
-            .background(ZWBrandBackdrop())
             .navigationTitle("QQ 扫码登录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -87,7 +91,7 @@ struct QQLoginView: View {
                         reloadToken = UUID()
                         stage = .loading
                     } label: {
-                        Image(systemName: "arrow.clockwise")
+                        Label("换一张码", systemImage: "arrow.clockwise")
                     }
                 }
             }
@@ -110,29 +114,36 @@ struct QQLoginView: View {
         }
     }
 
+    // MARK: - 诊断
+
     /// 诊断文本（可复制，出问题时整段发过来）
     private var diagLines: String {
         (["QQ扫码诊断", "UA = Android（伪装）", "---"] + diag.reversed())
             .joined(separator: "\n")
     }
 
-    /// 诊断面板 —— 出问题时让用户整块截图 / 复制发过来就够了
+    /// 诊断面板 —— 出问题时整块截图 / 复制发过来就够了。
+    /// 用可折叠的 DisclosureGroup（系统控件），默认收起，不抢二维码的位置。
     private var diagPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+        DisclosureGroup {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
                 }
+                .padding(.top, 6)
             }
-            .padding(12)
+            .frame(maxHeight: 120)
+        } label: {
+            Text("诊断信息")
+                .font(.footnote)
         }
-        .frame(maxHeight: 132)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ZW.pad)
         .padding(.bottom, 8)
     }
 
@@ -141,36 +152,25 @@ struct QQLoginView: View {
             if stage.isBusy {
                 ProgressView().controlSize(.small)
             } else {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
+                ZWDiamond()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
             }
             Text(stage.text)
-                .font(.callout)
+                .font(.subheadline)
                 .foregroundStyle(color)
-            Spacer()
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, ZW.pad)
         .padding(.vertical, 12)
-        .frame(maxWidth: .infinity)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
-    }
-
-    private var icon: String {
-        switch stage {
-        case .success:   return "checkmark.circle.fill"
-        case .failed:    return "exclamationmark.triangle.fill"
-        case .cancelled: return "xmark.circle"
-        case .waiting:   return "qrcode"
-        default:         return "hourglass"
-        }
+        .background(.bar)
+        .accessibilityElement(children: .combine)
     }
 
     private var color: Color {
         switch stage {
-        case .success: return .green
-        case .failed:  return .orange
+        case .success: return .zwSignal
+        case .failed:  return .zwRouge
         default:       return .secondary
         }
     }

@@ -60,6 +60,26 @@ PATTERNS = [
 # 正常赋值全被报出来，140 行噪音里淹掉真问题 —— 体检脚本自己也得体检。
 
 
+def is_false_positive(line: str) -> bool:
+    """把「长得像、但不是」的情况排掉。
+
+    目前只有一种：`systemName:` 后面接的是**三元表达式**，
+    点号来自变量而不是漏引号：
+
+        Image(systemName: info.ok ? "checkmark" : "exclamationmark")
+                              ^^^^^^^ 这里的点号是合法成员访问
+
+    真正的漏引号长这样：`systemName: chevron.up.chevron.down`
+    —— 后面不会跟着 `?`。
+    """
+    if "systemName:" in line:
+        tail = line.split("systemName:", 1)[1]
+        # 只看这一行内、右括号之前的部分
+        if "?" in tail.split(")")[0]:
+            return True
+    return False
+
+
 def main() -> int:
     bad = 0
     files = sorted(ROOT.rglob("*.swift"))
@@ -79,6 +99,8 @@ def main() -> int:
             stripped = line.rstrip()
             # 注释行跳过 —— 注释里出现这些字样是正常的
             if stripped.lstrip().startswith("//"):
+                continue
+            if is_false_positive(stripped):
                 continue
             for pat, why in PATTERNS:
                 if re.search(pat, stripped):

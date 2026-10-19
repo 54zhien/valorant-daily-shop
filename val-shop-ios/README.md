@@ -1,4 +1,4 @@
-# 无畏契约 · 每日商店（iOS 26 / Liquid Glass）
+# 无畏契约 · 每日商店（iOS 26 / Liquid Glass · 入荷板）
 
 原生 SwiftUI 的独立每日商店 App。**代码推 GitHub → Actions 出未签名 IPA → 手机上自签安装。**
 
@@ -6,6 +6,11 @@
 >
 > 接口：`POST /go/mlol_store/agame/user_store`，body `{}`。
 > 完整逆向过程见 [`../val-shop/analysis/掌瓦数据链路分析.md`](../val-shop/analysis/掌瓦数据链路分析.md) §2。
+>
+> **🎨 2026-10-19 UI 大改**：材质是 Liquid Glass，版面重排成「入荷板」
+> （引信条 + 状态只说人话 + 底栏两个页签）。**面向普通用户**：开发工具全部收进
+> 收在「关于 → 诊断」里，普通用户碰不到。视觉事实来源是 [`design/preview.html`](design/preview.html)，
+> 改法与 token 见 §四。
 
 ## ⚠️ 用之前必须知道的一件事
 
@@ -32,21 +37,35 @@ val-shop-ios/
 │   ├─ Sources/ZhangwaKit/        协议层（Sendable 模型 + @MainActor client）
 │   └─ Tests/ZhangwaKitTests/     Swift Testing（@Suite / @Test / #expect）
 ├─ App/                           ⚠️ 需在 Xcode 26 上编译（本机无 SwiftUI）
-│   ├─ ZhangwaShopApp.swift       @main + TabView + tabBarMinimizeBehavior
-│   ├─ LiquidGlass.swift          ★ 全项目唯一直接调 iOS 26 玻璃 API 的文件
+│   ├─ ZhangwaShopApp.swift       @main + TabView（两个页签）+ 登录 sheet
+│   ├─ DesignSystem.swift         ★ 全项目 token：色板 / 圆角 / 字阶 / 玻璃块 / 列表零件
+│   ├─ LiquidGlass.swift          ★ 全项目唯一直接调 iOS 26 玻璃 API 的文件 + 品牌底
 │   ├─ AppModel.swift             @Observable + @MainActor
-│   ├─ ShopView.swift             玻璃卡片网格 + 玻璃按钮组 + 倒计时
-│   ├─ StoreCardView.swift        3D 翻牌 + 品质染色玻璃 + 无障碍标签
-│   ├─ EndpointsView.swift        searchable + 玻璃行 + 只看商店筛选
-│   ├─ SettingsView.swift         Form + 扫描 App 文件夹 + 导出诊断
-│   ├─ Theme.swift                品质→颜色映射
+│   ├─ ShopView.swift             身份条 + 入荷板（引信条）+ 主按钮 ← 普通人的主界面
+│   ├─ StoreCardView.swift        玻璃翻牌卡：卡背序号 + 卡面品质斜带/钻标 + 底部压字
+│   ├─ ProfileView.swift          「我的」：状态 / 扫码登录 / 角色 / 退出 / 关于
+│   ├─ DiagnosticsView.swift      ★ 诊断台（List，入口在「我的 → 关于 → 诊断」）
+│   ├─ EndpointsView.swift        抓包接口清单（诊断台里的子页）
+│   ├─ QRLoginView.swift          微信扫码（取景框 + 状态钻）
+│   ├─ QQLoginView.swift          QQ 扫码（WKWebView + 诊断面板）
+│   ├─ RolePickerView.swift       多角色切换
+│   ├─ Theme.swift                模型 → 视图的取值助手（品质色、价格千位、会话健康度）
 │   ├─ BundledConfig.plist        ★ CI 用它注入商店接口路径
 │   ├─ Assets.xcassets/           AppIcon(1024) / AccentColor
 │   ├─ make_icon.py               图标生成脚本（零依赖，可重跑）
-│   ├─ selfcheck.py               工程自检（YAML/plist/图标/工作流断言）
+│   ├─ selfcheck.py               工程自检（YAML/plist/图标/**Swift 语法**/设计资产）
 │   └─ Localizable.xcstrings      String Catalog
+├─ design/                        ★ 设计预览台（视觉事实来源）
+│   ├─ preview.html               单文件、零依赖：七个界面 + token 板，可点可翻
+│   └─ shoot.ps1                  渲染成一堆 PNG（Windows 上也能跑，不用 Xcode）
+├─ probe/                         ★ 本机能跑的两个验算台（不参与 App target）
+│   ├─ isolation_probe.swift      并发隔离语义（MainActor-by-default 下 Shape 怎么写）
+│   └─ geometry_probe.swift       切角/品质钻/斜纹/网格的路径点对账
 └─ project.yml                    XcodeGen
 ```
+
+> `design/` 与 `probe/` 不在 App target 里（`project.yml` 只收 `App/`），
+> 所以里面放可执行脚本和实验代码都不会进包。
 
 > **目录说明**：工作流要放**仓库根**的 `.github/workflows/`。
 > 如果你的仓库根就是 `Valorant App/`，那现在的位置就是对的；
@@ -151,15 +170,18 @@ adb pull /data/local/tmp/mval_capture.log      # 里面那条就是商店接口
 
 ### 丢进手机（自签环境专门优化过）
 
+> 现在这条路只在**排障**时用（普通用户直接扫码登录）。入口：
+> `我的 → 关于 → 诊断`。
+
 Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`，
 所以 App 的文件夹会出现在「文件」App 里：
 
 1. 两个文件 AirDrop 到 iPhone
 2. 在「文件」里移动到 **我的 iPhone → 每日商店**
-3. App →「设置」→ 点 **「扫描 App 文件夹」** —— 两个文件一起读进来
+3. 诊断台 → 点 **「扫描 App 文件夹」** —— 两个文件一起读进来
 
-不用打路径、不用一个个选。读完切到「接口」页，找带 **「疑似商店」** 角标的那条，点「设为商店接口」，
-回「商店」点读取。
+不用打路径、不用一个个选。读完进 **诊断台 → 接口清单**，找带 **「疑似商店」** 角标的那条，
+点「设为商店接口」，回「商店」点读取。
 
 > **为什么必须要 ct**：`ct` 不在 Cookie 里，但它是换 `wt`（= Cookie 的 `tid`）的唯一凭据。
 > 有 ct 的会话能自己续命；只有 Cookie 的话 tid 一过期就得重抓。完整推导见 `../val-shop/analysis/掌瓦数据链路分析.md` §2.1。
@@ -168,44 +190,129 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 
 ## 三、出问题了怎么查（没有 Xcode 控制台也能查）
 
-自签装的 App 看不到 Xcode 日志，所以两处内置了排查手段：
+自签装的 App 看不到 Xcode 日志，所以留了一个**藏起来的**诊断台：
 
-1. **商店页底部的「运行日志」** —— 滚动，最近 12 条
-2. **设置 → 维护 → 「导出诊断信息」** —— `ShareLink` 导出纯文本：登录态概览 + 商店接口 + 归一化结果 + **原始 JSON** + 全部日志
+> **入口：`我的 → 关于 → 诊断`**（见 `ProfileView` 的「关于」分区）
 
-读到数据但解析不出商品时，把导出的文本发我，里面有 `rawKeys`（原始字段名）和完整 JSON，直接照着改 `StoreNormalizer` 的候选键就行。
+里面是：上次读取结果、全部动作（读取 / 刷新票据 / 探测接口 / 恢复默认 / 演示数据 / 导入抓包文件）、
+粘贴登录态、抓包接口清单、运行日志（最近 80 行）、导出诊断信息。
+
+**为什么藏起来**：这一页的每个词（票据 / ct / 接口 / 抓包）对普通用户都没有意义。
+台面上只留一句话人话提示，出问题时才出现：
+
+| 情况 | 首页会说什么 |
+|---|---|
+| 没登录 | 还没登录 —— 登录一下就能看今天的商店 |
+| 登录快过期 / 不能自刷新 | 登录状态快到期了，建议到「我的」重新扫一下码 |
+| 读取失败 | 没读到商店：<原因>。点下面按钮再试一次 |
+
+读到数据但解析不出商品时：诊断台点「导出诊断信息」，把文本发我 —— 里面有 `rawKeys`
+（原始字段名）和完整 JSON，直接照着改 `StoreNormalizer` 的候选键就行。
 
 ---
 
-## 四、Liquid Glass 怎么组织的
+## 四、这一版 UI 怎么来的（按 Apple 文档做，不自己发挥）
 
-**所有 iOS 26 玻璃 API 只出现在 `App/LiquidGlass.swift` 一个文件里**，View 层只调封装：
+> 视觉事实来源：[`design/preview.html`](design/preview.html) —— 单文件、离线、能点开翻牌。
+> 它现在用的是 **iOS 深色模式下的系统真值色**（`#000000` / `#1C1C1E` / `rgba(235,235,245,.6)`…），
+> 所以预览里看到的，就是真机上大概的样子。
 
-```swift
-.zwGlassPanel()                        // 面板玻璃
-.zwGlassCard(tint: rarity.color)       // 卡片玻璃（带品质染色）
-.zwGlassChip(tint: .zwMint)            // 胶囊
-.zwProminentButton(tint: .zwAccent)    // .glassProminent
-.zwGlassButton()                       // .glass
-.zwMorphID("card-0", in: namespace)    // glassEffectID → 翻牌时玻璃 morph
-.zwScrollEdge(.all)                    // scrollEdgeEffectStyle(.soft, for:)
+### 六条硬规矩（都是文档里的，不是我拍的）
 
-ZWGlassGroup(spacing: 16) { … }        // GlassEffectContainer
-ZWBrandBackdrop()                      // MeshGradient，让玻璃有东西可折射
+| 规矩 | 出处 | 落地方式 |
+|---|---|---|
+| 字号走 Dynamic Type，不写死点数 | HIG Typography / [Scaling fonts automatically](https://developer.apple.com/documentation/UIKit/scaling-fonts-automatically) | 全项目 **0 处** `.font(.system(size:))`，只有 `.caption2 / .caption / .footnote / .subheadline / .callout / .body / .headline / .title3` |
+| 文字用语义色，颜色定义在资产目录 | [HIG Color](https://developer.apple.com/design/human-interface-guidelines/color) / [Supporting Dark Mode](https://developer.apple.com/documentation/UIKit/supporting-dark-mode-in-your-interface) | 文字只有 `.primary / .secondary / .tertiary`；底色只有 `Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`；品牌红、青绿进 `Assets.xcassets`（`zwRouge` / `zwSignal`）；`Info.plist` 声明 `UIUserInterfaceStyle = Dark` |
+| 玻璃是**控件层**的材质 | [HIG Materials](https://developer.apple.com/design/human-interface-guidelines/materials) | TabBar / NavigationBar / sheet / `.glassProminent` 按钮 —— 全部由系统提供。内容层（卡片、分组、身份卡）不透明。项目里**不再自己调 `glassEffect`** |
+| 设置类内容用 List / Form | [HIG Lists and tables](https://developer.apple.com/design/human-interface-guidelines/lists-and-tables) | 「我的」「诊断台」「抓到的接口」「切换角色」都是 `List` + `LabeledContent`，分隔线 / VoiceOver / 键盘导航全是白拿的 |
+| 自定义手势不能是唯一入口 | [HIG Gestures](https://developer.apple.com/design/human-interface-guidelines/gestures) | 诊断台改成「我的 → 关于 → 诊断」一行明码，不再靠长按版本号 |
+| 自定义控件要报值 | [HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility) | 引信条报 `accessibilityValue("NN%")`；卡片报「第 N 张 / 名称 / 价格 / 已拥有」 |
+
+### 版面
+
+```
+[ 每日商店 ]                       ← NavigationStack，inline 标题（玻璃，系统）
+ 身份卡   头像 · 游戏ID · 段位 ············ ◆ 已登录
+ DAILY STORE          16:47:08    [翻开全部]
+ ─────────────────────────────── ← 引信条：今天的进度
+ ┌────────┐ ┌────────┐
+ │  画    │ │  画    │             内容卡：不透明 4:5
+ ├────────┤ ├────────┤             上画 / 下信息，中间系统分隔线
+ │ 名字    │ │ 名字    │
+ │ 1290 VP │ │ 1290 VP │
+ └────────┘ └────────┘
+ LINE-UP · 4   紫×2 金×1   合计 7 550 VP
+[ 读取今日商店 ]                    ← .glassProminent（控件层）
+[ 商店 ][ 我的 ]                    ← TabView，iOS 26 自带玻璃与 morph
 ```
 
-**如果 Xcode 报某条玻璃 API 找不到或签名不对，只改 `LiquidGlass.swift`，不要动 View。**
+一屏放得下四张卡（4:5，和游戏里一样）。小屏机（SE）会滚一点，这是取舍不是 bug。
 
-遵守了 Apple 的几条硬性建议：玻璃间距 ≥ 20pt、不自己画 TabBar/NavigationBar/Toolbar 背景、
-`.clear` 只用在媒体丰富背景上、玻璃是「控件层」而内容层保持不透明可读。
+### 翻牌动效：回到最早那版，并修掉叠影
 
----
+动效就是你最早喜欢的那一版，没换：
+
+- 整张卡绕 Y 轴转 180°，`spring(response: 0.55, dampingFraction: 0.8)`
+- 四张依次翻开，错开 `130ms`（复刻掌瓦的每日首次查看动画）
+- 开「减弱动态效果」时不转 3D，改成交叉淡入
+
+**修掉的 bug**：旧版两个面的 `opacity` 跟着旋转**同时**动画，导致前半程能看到
+正面的镜像叠在卡背上（闪一下 / 叠影）。现在两个面在「转到 90°」那一刻瞬间切换
+（`.linear(duration: 0.01).delay(ZW.flip * 0.45)`）—— 那一刻卡片正好侧对镜头，
+切换是看不见的。见 `StoreCardView.swift` 的 `swapAnimation`。
+
+> 顺带一句：玻璃卡片之间的 morph 效果没了。原因是卡片现在是**内容**，
+> 内容层不上玻璃（规矩三）。想要 morph 就得让卡片回到控件层，那就破了规矩三。
+> 你说要哪个，我改哪个。
+
+### token 在哪（`App/DesignSystem.swift`）
+
+| 类别 | 用什么 |
+|---|---|
+| 文字层级 | `.primary` / `.secondary` / `.tertiary` |
+| 内容底 | `Color(.secondarySystemGroupedBackground)` → `zwContentBackground()` |
+| 页面底 | `Color(.systemBackground)` / `.systemGroupedBackground` |
+| 品牌色 | `zwRouge` `#FF4655`、`zwSignal` `#00E0C6`（`Assets.xcassets` 里的 colorset） |
+| 品质五档 | `Rarity.colorHex` —— 服务端数据（掌瓦 `ic_val_goods_quality_1..5`），**不可改** |
+| 字号 | Dynamic Type 文本样式，见上表 |
+| 两处腔调 | 机器腔 `.system(style).weight(.heavy).width(.compressed)`（**只排拉丁小标**）；数据腔 `.system(style, design: .monospaced)` |
+| 几何 | 分组 16 / 卡片 20 / 小控件 11 / 发丝线 1 / 页边 16 |
+| 自绘形状 | `ZWDiamond`、`ZWHatchTexture` —— 附几何验算台 |
+
+### 预览台与验算台（Windows 上也能跑）
+
+```powershell
+# 渲染设计预览成 PNG（不需要 Xcode，不需要联网）
+powershell -File val-shop-ios/design/shoot.ps1
+# 出图：design/shots/  s1-store  s2-revealed  s3-empty  s4-diagnostics
+#                       s5-endpoints  s6-profile  s7-login   （默认 2x）
+
+# 并发隔离语义：MainActor-by-default 下自定义 Shape 该怎么写
+cd val-shop-ios/probe
+swiftc -typecheck -swift-version 6 -default-isolation MainActor `
+       -strict-concurrency=complete isolation_probe.swift
+
+# 几何对账：品质钻 / 卡背斜纹的路径点真的算出来对一遍
+swiftc -O geometry_probe.swift -o geo.exe; .\geo.exe
+```
+
+> `isolation_probe.swift` 不是作业，是**结论的存档**：它证明了在这个 target 的设置下
+> （`SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` + Swift 6 严格并发）
+> `OptionSet` 的一致性会被推成 MainActor 隔离、在 `nonisolated func path(in:)` 里用不了。
+> 自定义 shape 之前先跑一遍它。
 
 ## 五、对照「最新 Apple 要求」
 
 | 要求 | 实现 |
 |---|---|
-| Liquid Glass | `glassEffect` / `GlassEffectContainer` / `glassEffectID` / `Glass.regular·tint·interactive` / `ButtonStyle.glass·glassProminent` / `ToolbarSpacer` / `.tabBarMinimizeBehavior(.onScrollDown)` / `.scrollEdgeEffectStyle(.soft, for:)` / `MeshGradient` 底 |
+| Liquid Glass | 玻璃**只作控件层材质**（HIG Materials）：`TabView` / `NavigationStack` / `.sheet` 全由系统出玻璃；按钮用 `ButtonStyle.glass` ⇄ `glassProminent`；`.tabBarMinimizeBehavior(.onScrollDown)`；`.scrollEdgeEffectStyle(.soft, for:)` 走 `zwScrollEdge()`。项目内**已无一处**直接调 `glassEffect` |
+| 内容层材质 | 不透明：`Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`，全部系统语义色 |
+| 颜色来源 | 品牌红青绿在 `Assets.xcassets` 的 colorset；文字只用 `.primary/.secondary/.tertiary`（HIG Color） |
+| 外观 | `Info.plist` 声明 `UIUserInterfaceStyle = Dark`，纯深色 App（HIG Supporting Dark Mode） |
+| 字体 | 全部 Dynamic Type 文本样式；两处腔调 = 系统字体 + `weight`/`width`/`design`，无第三方字体（HIG Typography） |
+| 设置类页面 | `List` + `LabeledContent` + `Section(header:footer:)`（HIG Lists and tables） |
+| 手势 | 不用隐藏手势做唯一入口；诊断入口是「我的 → 关于 → 诊断」一行（HIG Gestures） |
+| **面向普通用户** | 底栏两个页签（商店 / 我的）；界面上不出现「票据 / ct / 接口 / 日志 / 抓包」 |
 | 不用回退开关 | Info.plist **刻意不写** `UIDesignRequiresCompatibility`（该开关 iOS 27 会被移除） |
 | Swift 6 | `SWIFT_VERSION=6.0` + `SWIFT_STRICT_CONCURRENCY=complete`，包也设了 `.swiftLanguageMode(.v6)` |
 | Approachable Concurrency | `SWIFT_APPROACHABLE_CONCURRENCY=YES` + `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` |
@@ -213,9 +320,10 @@ ZWBrandBackdrop()                      // MeshGradient，让玻璃有东西可�
 | Observation | `@Observable` + `@Environment(AppModel.self)`，无 `ObservableObject`/`@Published` |
 | Swift Testing | `@Suite` / `@Test` / `#expect` / `#require` / 参数化用例，无 XCTest |
 | App Icon | `make_icon.py` 生成的 1024 单尺寸；要上架可再用 Icon Composer 导出 `.icon` |
-| 无障碍 | 卡片 `.accessibilityElement(children: .combine)` + 中文标签与提示 |
-| Dynamic Type | 全语义字体，零固定 pt |
-| iPhone + iPad | `TARGETED_DEVICE_FAMILY=1,2`，网格 `.adaptive` |
+| 无障碍 | 卡片 `.accessibilityElement(children: .combine)` + 中文标签与提示；引信条报 `accessibilityValue`（HIG Accessibility） |
+| Dynamic Type | 语义字号；卡片内文字给 `lineLimit` + `minimumScaleFactor`，Dynamic Type 拉到最大时不会撑破卡 |
+| 减弱动态效果 | `accessibilityReduceMotion` 打开时，翻牌从 3D 旋转降级成交叉淡入 |
+| iPhone + iPad | `TARGETED_DEVICE_FAMILY=1,2`，板子限宽 520pt 居中（`ZW.boardMaxWidth`） |
 | String Catalog | `Localizable.xcstrings` + `STRING_CATALOG_GENERATE_SYMBOLS` |
 | 沙盒化构建脚本 | `ENABLE_USER_SCRIPT_SANDBOXING=YES` |
 
@@ -224,15 +332,33 @@ ZWBrandBackdrop()                      // MeshGradient，让玻璃有东西可�
 ## 六、本地怎么验（不用等 CI）
 
 ```bash
-# 协议层：17 个用例，不联网不需要账号
+# ① 协议层：17 个用例，不联网不需要账号
 cd val-shop-ios/ZhangwaKit && swift test
 
-# 工程自检：YAML / plist / 图标 / 工作流关键断言
-python3 val-shop-ios/App/selfcheck.py
+# ② 工程自检：YAML / plist / 图标 / Swift 语法 / 设计资产（Windows 上就能跑）
+python val-shop-ios/App/selfcheck.py
+#   └ 里面有一项会调 swiftc -parse 扫全部 App/*.swift（语法层，不需要 Apple SDK）
 
-# 生成工程（macOS）
+# ③ 兜底体检：找「被 shell 吃掉的引号/美元符/绑定变量」
+python val-shop/capture/lint_swift_shell_damage.py
+
+# ④ 设计预览台（改 UI 先看这个）
+powershell -File val-shop-ios/design/shoot.ps1
+
+# ⑤ 生成工程（仅 macOS）
 cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
 ```
+
+**本机能验什么、不能验什么，说清楚**：
+
+| 检查 | 本机（Windows） | 说明 |
+|---|---|---|
+| Swift 语法 | ✅ `swiftc -parse` | 括号/引号/缺逗号这类 |
+| 并发隔离语义 | ✅ `probe/isolation_probe.swift` | MainActor-by-default 下哪些写法会炸 |
+| 形状几何 | ✅ `probe/geometry_probe.swift` | 切角/钻标/斜纹的路径点逐点对账 |
+| 协议层逻辑 | ✅ `swift test` | ZhangwaKit 那 17 个用例 |
+| **SwiftUI 类型检查** | ❌ | 没有 Apple SDK，只能等 CI（macOS + Xcode 26） |
+| **运行时外观** | ❌ | 要装到手机上才看得到 |
 
 ---
 
@@ -241,7 +367,8 @@ cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
 | 部分 | 状态 |
 |---|---|
 | `ZhangwaKit` 协议层 | ✅ 本机 Swift 6.2.3 编译 + 17 个测试全过；CI（macOS + Xcode 26）也全过 |
-| `App/` SwiftUI 层 | ✅ **CI 上真实编译通过**（iOS 26 SDK / Xcode 26 / arm64） |
+| `App/` SwiftUI 层（大改前那一版） | ✅ **CI 上真实编译通过**（iOS 26 SDK / Xcode 26 / arm64） |
+| `App/` SwiftUI 层（本次大改后） | ⏳ 本机只做了**语法 + 几何 + 隔离语义**三层验证；类型检查要等 CI |
 | Liquid Glass API | ✅ 编译通过，且二进制里确认链上了 `glassEffect` / `GlassEffectContainer` / `tabBarMinimizeBehavior` / `scrollEdgeEffectStyle` |
 | 未签名 IPA | ✅ 产出并校验：Payload 结构正确、无 `_CodeSignature` 残留、`MinimumOSVersion 26.0`、arm64、图标已编译、`BundledConfig.plist` 已注入 |
 | 滚动 Release 直链 | ✅ 实测 HTTP 206 可下载，返回 PKZIP |
@@ -265,6 +392,19 @@ LiquidGlass.swift:73:   error: type 'some Hashable' does not conform to the 'Sen
 **其余玻璃 API 一次过**，包括 `MeshGradient`、`GlassEffectContainer`、`ToolbarSpacer`、
 `tabBarMinimizeBehavior`：说明按文档写的签名都是对的。
 
+### 大改这一版，本机提前排掉了哪些坑
+
+大改动了十几个文件，本机没有 SwiftUI，所以先把**能离线验的都验了**再交出去：
+
+| 坑 | 怎么发现的 | 结论 |
+|---|---|---|
+| **会翻的那层不能上模糊/裁剪** | 渲染预览台时翻牌只剩卡背 | `backdrop-filter` / `clip-path` / `clipShape` 都会压平 3D 上下文。玻璃挂在**面上**（HTML）或**容器上**（SwiftUI 的 `zwGlassCard` 挂在旋转外层），两者只能选一个位置 |
+| **字压在玻璃上会糊** | 预览台里卡片底部的字被玻璃底色顶掉对比度 | meta 区垫一层压暗渐层，但比不透明版轻（`.42 → .66` 而不是 `.78 → .96`） |
+| `OptionSet` 的一致性会被推成 MainActor 隔离 | `probe/isolation_probe.swift` | 自定义 shape 在 `path(in:)` 里只读实例属性；别碰 static token 和协议合成成员 |
+| `.kerning` / `.monospacedDigit` 是 **Text** 的方法 | 查 Apple 文档 | 这两个 helper 定义在 `extension Text` 上，不用 `View` 版本 |
+| 绝对定位的纹理层会盖住所有静态内容 | 预览台第一版把整页文字蒙灰 | 底纹并进背景，不要用覆盖层（玻璃版已经不需要底纹） |
+
+
 ---
 
 ## 八、排错
@@ -275,12 +415,14 @@ LiquidGlass.swift:73:   error: type 'some Hashable' does not conform to the 'Sen
 | CI: `xcodegen: command not found` | 检查 `brew install xcodegen` 那步有没有被跳过 |
 | 编译 `cannot find 'glassEffect' in scope` | Xcode 不是 26+，或 deployment target 低于 26 |
 | 编译 `Value of type 'Glass' has no member ...` | 改 `LiquidGlass.swift` 里的 `GlassPanelModifier.glass` |
-| `MeshGradient` 编译不过 | 换成 `LinearGradient`（视觉差别不大） |
+| 编译 `value of type 'Font' has no member 'width'` | `DesignSystem.swift` 的 `Font.zwMachine`，删掉 `.width(.compressed)` 即可 |
+| 编译报 `main actor-isolated ... nonisolated context` | 大概率是往 `path(in:)` 里塞了 static token。跑 `probe/isolation_probe.swift` 复现 |
 | 自签工具报「签名校验失败」 | IPA 里有残留签名。确认工作流里那两行 `rm` 执行了 |
 | 装完打不开 / 闪退 | 大概率是 entitlements 不匹配。自签工具里选「不使用 App 自带 entitlements」再签一次 |
-| 玻璃看不见 | 背景太素。调高 `ZWBrandBackdrop` 里的透明度 |
-| `[999999] 票据异常` | tid 过期。设置页点「刷新票据」；若 `ct 无` 只能重抓 |
-| 读到 0 件商品 | 导出诊断信息发我，看 `rawKeys` 改 `StoreNormalizer` |
+| 玻璃看不见 / 一片糊 | 背景太素。`ZWBrandBackdrop` 的两团柔光是玻璃的"折射物"，别把透明度调低 |
+| 卡面上的字发灰 | meta 的压暗渐层太薄。调 `StoreCardView.meta` 里那两个 `Color.zwInk.opacity(...)` |
+| `[999999] 票据异常` | tid 过期。诊断台点「刷新票据」；若 `ct 无` 只能重抓 |
+| 读到 0 件商品 | 诊断台「导出诊断信息」发我，看 `rawKeys` 改 `StoreNormalizer` |
 | 7 天后闪退 | 免费证书掉签，重签就行 |
 
 ---
