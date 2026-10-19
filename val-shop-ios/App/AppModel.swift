@@ -110,6 +110,12 @@ final class AppModel {
 
     var loginSheet: LoginSheet?
 
+    /// 最近一次续期失败的原因。nil = 一切正常。
+    ///
+    /// 为什么要暴露到界面上：续期失败以前只打日志，用户看不到，
+    /// 等真掉了线才发现「原来早就一直在失败」。
+    var renewError: String?
+
     func adopt(_ s: ZhangwaSession) {
         client.updateSession(s)
         applySession(s)
@@ -127,8 +133,15 @@ final class AppModel {
         guard client.needsClientTicketRenewal else { return }
         let ok = await client.ensureFreshClientTicket()
         applySession(client.session)
-        push(ok ? "登录态已自动续期（下次续期在 1 天后）"
-                : "登录态续期失败 —— 可能 ct 已过期，需要重新抓一次包")
+        if ok {
+            renewError = nil
+            push("登录态已自动续期")
+        } else {
+            // 失败要说清楚「不影响现在用」—— ct 还有余量，
+            // 下次打开或者后台刷新还会再试。别一上来就吓唬人。
+            renewError = client.lastError
+            push("续期暂时失败（不影响现在看商店，下次打开会再试）")
+        }
     }
 
     /// 把登录态导出成一段文本，方便备份。

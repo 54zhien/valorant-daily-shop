@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import UniformTypeIdentifiers
 import ZhangwaKit
 
@@ -70,10 +70,17 @@ struct SettingsView: View {
                 Text(model.lastRenewText)
                     .foregroundStyle(.secondary)
             }
+            if let err = model.renewError {
+                LabeledContent("上次续期失败") {
+                    Text(err)
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
+            }
             LabeledContent("自动续期") {
                 Text(model.session.ct.isEmpty
                      ? "无 ct 时续不了"
-                     : "打开 App 时检查（超过 1 天就续）\n后台也会隔几小时试一次")
+                     : "打开 App 时检查（超过 6 小时就续）\n后台也会隔几小时试一次")
                     .foregroundStyle(.secondary)
             }
             LabeledContent("tid（= wt）") {

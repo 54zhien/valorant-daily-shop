@@ -480,7 +480,7 @@ struct ZhangwaKitTests {
         #expect(!c.needsClientTicketRenewal, "刚续过就不该再续")
     }
 
-    @Test("ct 超过 1 天就续（每天开一次 App 就能永远续下去）")
+    @Test("ct 超过 6 小时就续（间隔取得比寿命小得多，容错才够）")
     func ctRenewalTiming() {
         let now = Date().timeIntervalSince1970
 
@@ -492,14 +492,22 @@ struct ZhangwaKitTests {
         }
 
         #expect(!needs(afterHours: 0))       // 刚拿到
-        #expect(!needs(afterHours: 12))      // 半天，还早
-        #expect(!needs(afterHours: 23))      // 差一小时到一天
-        #expect(needs(afterHours: 25))       // 过一天了，续
+        #expect(!needs(afterHours: 5))       // 还没到窗口
+        #expect(needs(afterHours: 7))        // 过窗口了，续
+        #expect(needs(afterHours: 24))       // 一天
         #expect(needs(afterHours: 24 * 6))   // 6 天
         #expect(needs(afterHours: 24 * 8))   // 已经过期
 
-        // 续期窗口必须明显小于 7 天寿命，否则「忘了开几天」就断
-        #expect(ZhangwaSession.ctRenewInterval < ZhangwaSession.ctLifetime / 2)
+        // ★ 这个比值是刻意的：窗口必须**远小于**寿命。
+        //
+        // 6 小时 / 7 天 = 1:28。含义是「连错 28 次才轮到断线」。
+        // 之所以不设成 1 天（1:7，本来也够），是因为后台刷新在 iOS 上
+        // 跑不跑完全看系统心情 —— 间隔越短，在同一个寿命窗口里
+        // 能碰上的唤醒机会就越多。
+        //
+        // 代价只是每天多几次网络请求，可以忽略。
+        #expect(ZhangwaSession.ctRenewInterval == 6 * 3_600)
+        #expect(ZhangwaSession.ctRenewInterval < ZhangwaSession.ctLifetime / 20)
 
         // 没有 ct 就续不了 —— 不该被判成「该续」（续也续不动）
         #expect(!needs(afterHours: 24 * 8, ct: ""))

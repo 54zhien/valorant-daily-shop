@@ -91,7 +91,7 @@ public struct ZhangwaSession: Codable, Equatable, Sendable {
     ///
     /// 之前设的是「剩 1 天才续」（= 第 6 天），那样只要 7 天没开 App 就断了，
     /// 余量太小。宁可多调一次接口，也要把余量拉满。
-    public static let ctRenewInterval: TimeInterval = 86_400
+    public static let ctRenewInterval: TimeInterval = 6 * 3_600
 
     public var accountType: Int { authType.accountType }
 

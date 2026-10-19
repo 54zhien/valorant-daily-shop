@@ -337,11 +337,26 @@ public final class ZhangwaClient {
             - Date().timeIntervalSince1970
     }
 
+    /// 最近一次自动续期的失败原因。
+    ///
+    /// 单独记一份是为了 UI 能显示「上次续期为什么没成」——
+    /// 之前失败只打日志，用户看不到，出了问题只能干瞪眼。
+    /// 续期成功会清空。
+    public private(set) var lastError: String?
+
     /// 该续就续，不该续就什么都不做。失败不抛错（下次自然还会试）。
     @discardableResult
     public func ensureFreshClientTicket() async -> Bool {
         guard needsClientTicketRenewal else { return true }
-        return (try? await refreshClientTicket()) ?? false
+        do {
+            try await refreshClientTicket()
+            lastError = nil
+            return true
+        } catch {
+            lastError = (error as? ZhangwaError)?.errorDescription
+                ?? error.localizedDescription
+            return false
+        }
     }
 
     /// `POST /go/auth/get_web_ticket` → 新的 wt，写回 `tid`
