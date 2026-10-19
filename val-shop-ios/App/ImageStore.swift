@@ -10,15 +10,21 @@ import CryptoKit
 //      · 缓存过期（服务端 `max-age=600`）后每次冷启动都要付一次 304 往返
 //      · 飞行模式 / 网络差的时候，图上永远不出来
 //
-//  为什么落盘的是缩略图
-//    真实皮肤图（`game.gtimg.cn/images/val/agamezlk/WeaponSkins/*.png`）实测
-//    512×144、RGBA、63 KB；卡面只用 170pt 宽 ≈ 340px @2x，
-//    缩到 340 存下来约 20–40 KB，解码几 ms。
+//  落盘时要不要降采样
+//    实测皮肤图（`game.gtimg.cn/images/val/agamezlk/WeaponSkins/*.png`）本身就是
+//    512×144、RGBA、63 KB。而卡面画心最宽约 153pt，@3x 需要 459px ——
+//    512 的原图刚好够、再缩就糊。所以**只有最长边超过 1024 才降采样**。
+//    （第一版一律缩到 340px，等于把 512 缩到 340 再放大回 459，边缘就发虚了。）
 //
 //  ⚠️ 存 **PNG，不能存 JPEG**
 //    皮肤图是带透明通道的 RGBA（颜色类型 6）。JPEG 没有 alpha，转码时透明底
-//    会被压成实色 —— 表现就是武器后面一块白框。第一版就是这么踩的，
-//    所以缓存目录名从 `zwimg` 换成了 `zwimg-png-v1`，把旧的白框缩略图整批作废。
+//    会被压成实色 —— 表现就是武器后面一块白框。
+//
+//  磁盘目录的版本号
+//    `zwimg`        → 第一版，存的是 JPEG（白框）
+//    `zwimg-png-v1` → 改成 PNG，但一律缩到 340px（3x 屏上边缘发虚）
+//    `zwimg-v2`     → 现在这版：512 的原图直接用，只有大图才降采样
+//    每次换编码方式都必须换目录名，否则旧文件会继续被读到。
 //
 //  为什么 `.returnCacheDataElseLoad`
 //    同一 URL 对应的图内容永不变化，"新鲜度"对它没意义。
@@ -45,8 +51,8 @@ actor ImageStore {
 
     // MARK: 配置
 
-    /// 卡面 170pt × 2x。再大就是白解码
-    private let thumbSide: CGFloat = 340
+    /// 最长边超过这个才降采样。皮肤图是 512×144，刚好够 3x 屏（卡面 153pt ≈ 459px）
+    private let maxStoredSide: CGFloat = 1024
     /// 磁盘上限。1B 之后单张约 40 KB，这个额度基本不会触发
     private let diskBudget: Int64 = 200 << 20        // 200 MB
 
@@ -58,7 +64,7 @@ actor ImageStore {
 
     init() {
         // 目录名带版本：上一版存的是 JPEG（把透明底压成了白框），必须整批作废
-    dir = URL.cachesDirectory.appending(path: "zwimg-png-v1")
+    dir = URL.cachesDirectory.appending(path: "zwimg-v2")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         memory.countLimit = 60          // 一期 4 张，留够来回切的余量
         // 清磁盘放到后台，别挡启动
@@ -77,7 +83,7 @@ actor ImageStore {
         if let running = inFlight[url] { return await running.value }
 
         let dir = self.dir
-        let side = self.thumbSide
+        let maxSide = self.maxStoredSide
         let file = dir.appending(path: Self.fileName(url))
 
         let task = Task<SendableImage?, Never> {
@@ -97,17 +103,20 @@ actor ImageStore {
                 return nil          // 失败不落盘，下次还会重试
             }
 
-            // ⑤ 降采样再存 —— 这一步是 1B 的全部价值
-            let thumb = try? await full.byPreparingThumbnail(
-                ofSize: CGSize(width: side, height: side))
-            let small = thumb ?? full
-            // ⚠️ 必须存 PNG，不能存 JPEG：皮肤图（512×144）是**带透明通道**的 RGBA，
-            //    JPEG 没有 alpha，转码时透明底会被压成实色 —— 表现就是武器后面一块白框。
-            //    340px 的 PNG 也就 20–40 KB，和 JPEG 差不了多少，没必要省这点。
-            if let png = small.pngData() {
+            // ⑤ 只有真·大图才降采样：皮肤图 512×144 保持原样（缩了反而糊）
+            let longest = max(full.size.width, full.size.height) * full.scale
+            var stored = full
+            if longest > maxSide {
+                stored = (try? await full.byPreparingThumbnail(
+                    ofSize: CGSize(width: maxSide, height: maxSide))) ?? full
+            }
+
+            // ⚠️ 必须存 PNG，不能存 JPEG：皮肤图是**带透明通道**的 RGBA，
+            //    JPEG 没有 alpha，转码时透明底会被压成实色 —— 武器后面一块白框。
+            if let png = stored.pngData() {
                 try? png.write(to: file, options: .atomic)
             }
-            return SendableImage(small)
+            return SendableImage(stored)
         }
 
         inFlight[url] = task
