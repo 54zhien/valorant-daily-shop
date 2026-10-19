@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import ZhangwaKit
 
 /// 商店主界面。
@@ -44,22 +44,64 @@ struct ShopView: View {
                     }
                 }
             }
+            // 进页面拉一次角色信息（登录成功后也会由 AppModel 触发）
+            .task { await model.loadUserRole() }
             .sheet(isPresented: $showSession) {
                 SettingsView(isSheet: true)
             }
         }
     }
 
+    /// 头像：有卡面 URL 就异步加载，没有就显示游戏 ID 首字。
+    ///
+    /// 用 AsyncImage 而不是自己缓存 —— 这是首页一张小图，
+    /// SwiftUI 自带的够用，不值得为它引入缓存层。
+    private var avatar: some View {
+        ZStack {
+            Circle()
+                .fill(.white.opacity(0.12))
+            if let icon = model.userRole?.icon, let url = URL(string: icon),
+               !icon.isEmpty {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        fallbackInitial
+                    }
+                }
+            } else {
+                fallbackInitial
+            }
+        }
+        .frame(width: 42, height: 42)
+        .clipShape(.circle)
+        .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 0.5))
+    }
+
+    private var fallbackInitial: some View {
+        Text(String(model.displayName.prefix(1)))
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.85))
+    }
+
     // MARK: - 头部
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
+            // 头像（有卡面就显示卡面，没有就显示首字）
+            avatar
+
             VStack(alignment: .leading, spacing: 3) {
-                Text(model.hasSession ? model.accountLabel : "未登录")
+                // ★ 游戏 ID，形如「天天开心#26170」
+                Text(model.displayName)
                     .font(.headline)
-                Text(model.state.isLoading ? "正在读取…" : "数据来自官方同源接口")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(model.displaySubtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer(minLength: 0)
             Text(model.hasSession ? "已连接" : "未连接")

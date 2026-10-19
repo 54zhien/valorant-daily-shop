@@ -119,6 +119,8 @@ final class AppModel {
     func adopt(_ s: ZhangwaSession) {
         client.updateSession(s)
         applySession(s)
+        // 刚拿到登录态，顺手把游戏 ID 拉出来显示
+        Task { await loadUserRole() }
         push("扫码登录成功：userID=\(s.userID.isEmpty ? "?" : s.userID)"
              + "，ct \(s.ct.isEmpty ? "无" : "有")，有效期 7 天（会自动续）")
     }
@@ -205,6 +207,47 @@ final class AppModel {
         if h < 24 { return "\(h) 小时前" }
         return "\(h / 24) 天前"
     }
+
+    /// 当前登录用户的游戏角色（游戏 ID、段位、等级、卡面）
+    ///
+    /// 单独存一份而不是每次现拉：首页左上角要显示，属于高频读取；
+    /// 而且拉失败时保留上一次的值，比显示空白好。
+    var userRole: UserRole?
+
+    /// 拉一次角色信息。失败静默保留旧值 —— 这只是首页装饰，不该影响看商店。
+    func loadUserRole() async {
+        guard hasSession else {
+            userRole = nil
+            return
+        }
+        if let roles = await client.fetchGameRoles(), let pick = roles.preferred {
+            userRole = pick
+        }
+    }
+
+    /// 首页左上角的主标题。
+    ///
+    /// 优先游戏 ID（`天天开心#26170`）—— 那才是玩家认得的东西。
+    /// 拿不到才退回一个中性文案，绝不显示内部 userID
+    /// （那是 `JA-3095d6174193457a-b8d058817457ae26` 这种，用户看了只会困惑）。
+    var displayName: String {
+        if let r = userRole { return r.displayName }
+        return session.isValid ? "已登录" : "未登录"
+    }
+
+    /// 主标题下面的副标题：段位 · 等级
+    var displaySubtitle: String {
+        guard let r = userRole else {
+            return model_isLoading ? "正在读取…" : "数据来自官方同源接口"
+        }
+        var bits: [String] = []
+        if !r.roleText.isEmpty { bits.append(r.roleText) }
+        if r.level > 0 { bits.append("Lv\(r.level)") }
+        if bits.isEmpty { bits.append(r.areaName.isEmpty ? r.platformText : r.areaName) }
+        return bits.joined(separator: " · ")
+    }
+
+    private var model_isLoading: Bool { state.isLoading }
 
     var accountLabel: String {
         guard session.isValid else { return "未登录" }
@@ -459,6 +502,10 @@ final class AppModel {
     // MARK: - 拉取
 
     func loadStore() async {
+        // 顺带刷新游戏 ID —— 只拉一次的话换了名字/段位就不同步了。
+        // 放在最前面是因为它比商店请求轻，先出名字体感更好。
+        await loadUserRole()
+
         state = .loading
         flipped = [false, false, false, false]
 

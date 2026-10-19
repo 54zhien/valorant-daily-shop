@@ -344,6 +344,29 @@ public final class ZhangwaClient {
     /// 续期成功会清空。
     public private(set) var lastError: String?
 
+    // MARK: 当前用户的游戏角色
+
+    /// 拉当前登录用户的游戏角色（里面有游戏 ID、段位、等级、卡面）。
+    ///
+    /// `POST /go/account/getallgameroles`，body 空 `{}`。
+    /// 详见 UserRole.swift 顶部那段说明 —— 尤其是「gameId 不是游戏 ID」这个坑。
+    ///
+    /// 失败就返回 nil，不抛错：这只是首页装饰，拉不到不该影响看商店。
+    public func fetchGameRoles() async -> GameRoles? {
+        do {
+            let data = try await request("/go/account/getallgameroles", body: [:])
+            guard let root = data as? [String: Any] else { return nil }
+            guard JSONSerialization.isValidJSONObject(root),
+                  let encoded = try? JSONSerialization.data(withJSONObject: root),
+                  let roles = try? JSONDecoder().decode(GameRoles.self, from: encoded)
+            else { return nil }
+            return roles
+        } catch {
+            lastError = "角色信息：\((error as? ZhangwaError)?.errorDescription ?? error.localizedDescription)"
+            return nil
+        }
+    }
+
     /// 该续就续，不该续就什么都不做。失败不抛错（下次自然还会试）。
     @discardableResult
     public func ensureFreshClientTicket() async -> Bool {
