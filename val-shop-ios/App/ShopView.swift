@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 import ZhangwaKit
 
 /// 商店主界面。
@@ -99,7 +99,7 @@ struct ShopView: View {
         }
         .buttonStyle(.plain)
         .disabled(!model.canSwitchRole)
-        .sheet(isPresented: ) {
+        .sheet(isPresented: $showRolePicker) {
             RolePickerView().environment(model)
         }
     }
@@ -117,7 +117,7 @@ struct ShopView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     if model.canSwitchRole {
-                        Image(systemName: chevron.up.chevron.down)
+                        Image(systemName: "chevron.up.chevron.down")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
