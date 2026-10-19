@@ -88,6 +88,19 @@ final class AppModel {
     }
 
     /// 读构建期注入的默认配置。CI 会覆写 App/BundledConfig.plist。
+    /// 构建指纹：CI 会把提交短 SHA 写进 BundledConfig.plist。
+    /// 本地 xcodegen 直接跑没有这一项，显示 `—`。
+    /// 为什么需要它：自签安装换包之后，"我装的是哪一次"完全没有别的办法分辨。
+    static var buildStamp: String {
+        guard let url = Bundle.main.url(forResource: "BundledConfig", withExtension: "plist"),
+              let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let dict = plist as? [String: Any],
+              let sha = dict["buildSHA"] as? String,
+              !sha.isEmpty else { return "—" }
+        return sha
+    }
+
     private static func loadBundledConfig() -> (path: String, body: String) {
         guard let url = Bundle.main.url(forResource: "BundledConfig", withExtension: "plist"),
               let data = try? Data(contentsOf: url) else {

@@ -87,16 +87,20 @@ jobs:
         env:
           PATH_VALUE: ${{ vars.ZW_SHOP_PATH }}
           BODY_VALUE: ${{ vars.ZW_SHOP_BODY }}
+          SHA_VALUE: ${{ github.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os, plistlib, pathlib
           path = os.environ.get("PATH_VALUE", "").strip()
           body = os.environ.get("BODY_VALUE", "").strip() or "{}"
+          sha = os.environ.get("SHA_VALUE", "").strip()[:7]
           out = pathlib.Path("App/BundledConfig.plist")
-          payload = {"shopPath": path, "shopBody": body}
+          # buildSHA 只是构建指纹：界面上「关于 → 版本」会显示它，
+          # 用来分辨手机上装的到底是哪一次构建（不含任何凭据）。
+          payload = {"shopPath": path, "shopBody": body, "buildSHA": sha}
           out.write_bytes(plistlib.dumps(payload))
-          print(f"BundledConfig.plist -> shopPath={path or '(空)'} shopBody={body}")
+          print(f"BundledConfig.plist -> shopPath={path or '(空)'} shopBody={body} buildSHA={sha or '(空)'}")
           PY
 
       - name: 生成 Xcode 工程

@@ -74,7 +74,7 @@ enum ZW {
     // MARK: - 动效
 
     /// 翻牌时长
-    static let flip: Double = 0.5
+    static let flip: Double = 0.55
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 
@@ -84,10 +84,10 @@ enum ZW {
 
     // MARK: - 翻牌的"演出"参数（效果 1 + 3）
 
-    /// 抬升幅度：翻到一半时卡片放大多少（0.06 = 6%）
-    static let flipLift: CGFloat = 0.06
+    /// 抬升幅度：翻到一半时卡片放大多少（0.10 = 10%，要看得见）
+    static let flipLift: CGFloat = 0.10
     /// 边缘透光的强度（**中性白**，翻之前不透露品质）
-    static let flipGlow: Double = 0.55
+    static let flipGlow: Double = 0.85
 }
 
 // ============================================================================

@@ -59,7 +59,7 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    LabeledContent("版本", value: Bundle.main.shortVersion)
+                    LabeledContent("版本", value: "\(Bundle.main.shortVersion) (\(AppModel.buildStamp))")
                     LabeledContent("数据来源", value: "掌上无畏契约（同源接口）")
                     // 排障入口：放在最底下、明明白白一行（长按那种藏法文档不认）
                     Button {

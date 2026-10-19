@@ -47,6 +47,7 @@ struct DiagnosticsView: View {
 
     private var lastReadSection: some View {
         Section("上次读取") {
+            LabeledContent("构建", value: "\(Bundle.main.shortVersion) (\(AppModel.buildStamp))")
             LabeledContent("结果", value: statusText)
             LabeledContent("时间",
                            value: model.lastLoadedAt.map(Self.clock.string(from:)) ?? "还没读过")
