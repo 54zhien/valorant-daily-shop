@@ -104,13 +104,7 @@ struct ShopView: View {
         ZStack {
             Color(.tertiarySystemFill)
             if let icon = model.userRole?.icon, !icon.isEmpty, let url = URL(string: icon) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let img) = phase {
-                        img.resizable().scaledToFill()
-                    } else {
-                        fallbackInitial
-                    }
-                }
+                CachedImage(url: url, contentMode: .fill) { fallbackInitial }
             } else {
                 fallbackInitial
             }

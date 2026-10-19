@@ -279,6 +279,22 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 | 几何 | 分组 16 / 卡片 20 / 小控件 11 / 发丝线 1 / 页边 16 |
 | 自绘形状 | `ZWDiamond`、`ZWHatchTexture` —— 附几何验算台 |
 
+### 冷启动与图片缓存
+
+冷启动要快，两件事必须本地化（细节见 `App/ImageStore.swift` 与 `AppModel` 的「冷启动缓存」段）：
+
+| 东西 | 做法 |
+|---|---|
+| 商店 + 角色 | 上一期读到的写本地，`init()` 里**同步**铺上屏；命中「这一期」就完全不发请求，角色丢后台刷 |
+| 皮肤图 | 内存 `NSCache` + 磁盘缩略图（**降采样到 340px 再存 JPEG**，1.6 MB → 约 40 KB）；请求用 `.returnCacheDataElseLoad`，有就用、不问服务器 |
+
+为什么必须自己做：掌瓦的皮肤图是 CDN 原图（实测 **1.6 MB/张**、`Cache-Control: max-age=600`），
+而 iOS 默认的 `URLCache.shared` 磁盘额度只有 10 MB 量级 —— 四张图 6.5 MB 直接把它挤爆，
+于是每次冷启动都在重下。`AsyncImage` 又不让设 `cachePolicy`，所以加载器是自己写的
+（`CachedImage` + `ImageStore`）。
+
+**验收方法**（最干脆）：看一遍商店 → **开飞行模式** → 杀进程 → 冷启动。
+四张卡该立刻在，皮肤图也该在（磁盘缩略图）。图没了就说明缓存没生效。
 ### 预览台与验算台（Windows 上也能跑）
 
 ```powershell

@@ -71,13 +71,7 @@ struct RolePickerView: View {
         ZStack {
             Color(.tertiarySystemFill)
             if !role.icon.isEmpty, let url = URL(string: role.icon) {
-                AsyncImage(url: url) { phase in
-                    if case .success(let img) = phase {
-                        img.resizable().scaledToFill()
-                    } else {
-                        initial(role)
-                    }
-                }
+                CachedImage(url: url, contentMode: .fill) { initial(role) }
             } else {
                 initial(role)
             }
