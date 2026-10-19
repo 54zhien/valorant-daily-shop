@@ -10,10 +10,15 @@ import CryptoKit
 //      · 缓存过期（服务端 `max-age=600`）后每次冷启动都要付一次 304 往返
 //      · 飞行模式 / 网络差的时候，图上永远不出来
 //
-//  为什么落盘的是缩略图而不是原图
-//    掌瓦皮肤图是 CDN 原图，实测单张 1.6 MB（`ossweb-img.qq.com`）；
-//    而卡面只用 170pt 宽 ≈ 340px @2x。降采样到 340px 再存 JPEG：
-//      单张 1.6 MB → 约 40 KB（1/40），解码从几十 ms → 几 ms，肉眼无差。
+//  为什么落盘的是缩略图
+//    真实皮肤图（`game.gtimg.cn/images/val/agamezlk/WeaponSkins/*.png`）实测
+//    512×144、RGBA、63 KB；卡面只用 170pt 宽 ≈ 340px @2x，
+//    缩到 340 存下来约 20–40 KB，解码几 ms。
+//
+//  ⚠️ 存 **PNG，不能存 JPEG**
+//    皮肤图是带透明通道的 RGBA（颜色类型 6）。JPEG 没有 alpha，转码时透明底
+//    会被压成实色 —— 表现就是武器后面一块白框。第一版就是这么踩的，
+//    所以缓存目录名从 `zwimg` 换成了 `zwimg-png-v1`，把旧的白框缩略图整批作废。
 //
 //  为什么 `.returnCacheDataElseLoad`
 //    同一 URL 对应的图内容永不变化，"新鲜度"对它没意义。
@@ -52,7 +57,8 @@ actor ImageStore {
     private let dir: URL
 
     init() {
-        dir = URL.cachesDirectory.appending(path: "zwimg")
+        // 目录名带版本：上一版存的是 JPEG（把透明底压成了白框），必须整批作废
+    dir = URL.cachesDirectory.appending(path: "zwimg-png-v1")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         memory.countLimit = 60          // 一期 4 张，留够来回切的余量
         // 清磁盘放到后台，别挡启动
@@ -95,8 +101,11 @@ actor ImageStore {
             let thumb = try? await full.byPreparingThumbnail(
                 ofSize: CGSize(width: side, height: side))
             let small = thumb ?? full
-            if let jpeg = small.jpegData(compressionQuality: 0.9) {
-                try? jpeg.write(to: file, options: .atomic)
+            // ⚠️ 必须存 PNG，不能存 JPEG：皮肤图（512×144）是**带透明通道**的 RGBA，
+            //    JPEG 没有 alpha，转码时透明底会被压成实色 —— 表现就是武器后面一块白框。
+            //    340px 的 PNG 也就 20–40 KB，和 JPEG 差不了多少，没必要省这点。
+            if let png = small.pngData() {
+                try? png.write(to: file, options: .atomic)
             }
             return SendableImage(small)
         }
@@ -116,7 +125,7 @@ actor ImageStore {
     /// 不标的话从 Task 里调不到（同 Shape.path(in:) 的坑）。
     private nonisolated static func fileName(_ url: URL) -> String {
         let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
-        return digest.prefix(8).map { String(format: "%02x", $0) }.joined() + ".jpg"
+        return digest.prefix(8).map { String(format: "%02x", $0) }.joined() + ".png"
     }
 
     /// 超过预算就按修改时间删最旧的

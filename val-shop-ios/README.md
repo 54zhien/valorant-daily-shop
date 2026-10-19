@@ -286,12 +286,14 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 | 东西 | 做法 |
 |---|---|
 | 商店 + 角色 | 上一期读到的写本地，`init()` 里**同步**铺上屏；命中「这一期」就完全不发请求，角色丢后台刷 |
-| 皮肤图 | 内存 `NSCache` + 磁盘缩略图（**降采样到 340px 再存 JPEG**，1.6 MB → 约 40 KB）；请求用 `.returnCacheDataElseLoad`，有就用、不问服务器 |
+| 皮肤图 | 内存 `NSCache` + 磁盘缩略图（**降采样到 340px 存 PNG**，约 20–40 KB）；请求用 `.returnCacheDataElseLoad`，有就用、不问服务器 |
 
-为什么必须自己做：掌瓦的皮肤图是 CDN 原图（实测 **1.6 MB/张**、`Cache-Control: max-age=600`），
-而 iOS 默认的 `URLCache.shared` 磁盘额度只有 10 MB 量级 —— 四张图 6.5 MB 直接把它挤爆，
-于是每次冷启动都在重下。`AsyncImage` 又不让设 `cachePolicy`，所以加载器是自己写的
-（`CachedImage` + `ImageStore`）。
+为什么必须自己做：皮肤图 `Cache-Control` 只有 `max-age=600`，过期后每次冷启动都要付一次
+304 往返；`AsyncImage` 又不能设 `cachePolicy`，所以加载器是自己写的（`CachedImage` + `ImageStore`）。
+
+**存 PNG 不存 JPEG**：真实皮肤图（`game.gtimg.cn/.../WeaponSkins/*.png`）实测 512×144、
+**RGBA 带透明通道**、63 KB。JPEG 没有 alpha，会把透明底压成实色 —— 武器后面就多一块白框
+（第一版踩过，所以缓存目录带版本号 `zwimg-png-v1`，旧的白框缩略图整批作废）。
 
 **验收方法**（最干脆）：看一遍商店 → **开飞行模式** → 杀进程 → 冷启动。
 四张卡该立刻在，皮肤图也该在（磁盘缩略图）。图没了就说明缓存没生效。
