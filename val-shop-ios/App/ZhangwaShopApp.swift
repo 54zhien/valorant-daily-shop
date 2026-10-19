@@ -5,6 +5,18 @@ struct ZhangwaShopApp: App {
     @State private var model: AppModel
 
     init() {
+        // 皮肤图是 CDN 上的**原图**（实测单张 1.6 MB，`ossweb-img.qq.com`），
+        // 服务端只给 `Cache-Control: max-age=600`（10 分钟），而 iOS 默认的
+        // `URLCache` 磁盘额度只有 10 MB —— 四张图 6.5 MB 直接把它挤爆，
+        // 于是每次冷启动都在重新下载。这就是"皮肤图片要加载好一会"的根因。
+        //
+        // 换成大得多的磁盘缓存之后：10 分钟内的第二次打开是纯本地命中；
+        // 过期后也只是一次 304 重验证（ETag 存在），不用再传 1.6 MB。
+        URLCache.shared = URLCache(
+            memoryCapacity: 64 * 1024 * 1024,
+            diskCapacity: 512 * 1024 * 1024,
+            directory: URL.cachesDirectory.appending(path: "zwImageCache"))
+
         let m = AppModel()
         _model = State(initialValue: m)
         // BGTaskScheduler 的注册必须在启动完成前做完，App.init() 是最晚的合适位置。

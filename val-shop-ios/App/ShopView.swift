@@ -197,6 +197,12 @@ struct ShopView: View {
                 .zwMachine(.caption)
                 .foregroundStyle(.secondary)
 
+            // 冷启动时可能先在显示上一期的缓存，正在拉新的 —— 给个不打扰的提示
+            if model.state.isLoading {
+                ProgressView()
+                    .controlSize(.mini)
+            }
+
             Spacer(minLength: 0)
 
             countdown

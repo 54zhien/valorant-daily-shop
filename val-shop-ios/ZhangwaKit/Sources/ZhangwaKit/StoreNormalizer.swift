@@ -12,7 +12,7 @@ import Foundation
 /// ⚠️ 注意：这是**掌瓦商城自己的视觉档位**，不等于游戏里的品质名
 /// （实测同一档位下价格并不落在游戏的 875/1275/1775/2175/2475 上）。
 /// 所以这里保留原始 `qualityKey`，展示时优先用服务端给的原值。
-public enum Rarity: Int, CaseIterable, Hashable, Sendable {
+public enum Rarity: Int, CaseIterable, Hashable, Sendable, Codable {
     case blue = 1
     case green = 2
     case purple = 3
@@ -75,7 +75,7 @@ public enum Rarity: Int, CaseIterable, Hashable, Sendable {
 
 // MARK: - 商品
 
-public struct ShopItem: Identifiable, Hashable, Sendable {
+public struct ShopItem: Identifiable, Hashable, Sendable, Codable {
     public let id: String
     public let name: String
     public let weaponName: String
@@ -118,7 +118,7 @@ public struct ShopItem: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct StoreSnapshot: Sendable {
+public struct StoreSnapshot: Sendable, Codable {
     /// 面板标题，例如「每日商店」
     public let title: String
     /// 面板 key，例如 `dailystore`

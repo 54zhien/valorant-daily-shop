@@ -68,6 +68,19 @@ final class AppModel {
         c.onSessionChanged = { [weak self] new in
             self?.applySession(new)
         }
+
+        // 冷启动就把上一期读到的东西铺上屏 —— 别让用户对着空页面等网络。
+        // 顺序很重要：先快照，再按快照恢复翻牌状态（翻牌状态是跟"这一期"绑定的）。
+        if let snap = Self.loadCachedSnapshot() {
+            snapshot = snap
+            restoreFlippedFlags()
+        }
+        if let role = Self.loadCachedRole() {
+            userRole = role
+        }
+        if let roles = Self.loadCachedRoles(), !roles.isEmpty {
+            availableRoles = roles
+        }
     }
 
     private static func firstNonEmpty(_ values: String?...) -> String? {
@@ -254,15 +267,17 @@ final class AppModel {
         let saved = UserDefaults.standard.string(forKey: Self.selectedRoleKey)
         if let saved, let hit = availableRoles.first(where: { $0.identityKey == saved }) {
             userRole = hit
-            return
+        } else {
+            userRole = roles.preferred
         }
-        userRole = roles.preferred
+        cacheRoles()      // 下次冷启动直接有名字和段位可显示
     }
 
     /// 用户切角色
     func selectRole(_ role: UserRole) {
         UserDefaults.standard.set(role.identityKey, forKey: Self.selectedRoleKey)
         userRole = role
+        cacheRoles()
         push("已切换到 \(role.displayName)")
     }
 
@@ -484,6 +499,9 @@ final class AppModel {
         snapshot = .empty
         state = .idle
         endpoints = []
+        flipped = [false, false, false, false]
+        clearCachedStore()
+        clearCachedRoles()
         push("已清除会话")
     }
 
@@ -583,6 +601,7 @@ final class AppModel {
             state = .loaded
             lastLoadedAt = Date()
             restoreFlippedFlags()
+            cacheSnapshot()          // 下次冷启动直接拿这份铺屏
             push("商店读取成功，\(snap.items.count) 件商品")
             if snap.items.isEmpty {
                 push("没解析出商品，原始字段：\(snap.rawKeys.joined(separator: ", "))")
@@ -597,13 +616,17 @@ final class AppModel {
     ///
     /// "这一期"用 `snapshot.expiresAt`（= 下一次刷新点）判定：它还没到，
     /// 手上这份就是当前这一期的商店，没必要再打一次接口。
+    ///
+    /// 冷启动时 `init()` 已经把上一期读到的快照塞进 `snapshot` 了，
+    /// 所以这里命中"已读过"就等于**界面立刻有东西**，不等网络。
     func loadStoreIfNeeded() async {
         guard hasSession else { return }
         let fresh = !snapshot.items.isEmpty
             && (snapshot.expiresAt.map { $0 > Date() } ?? false)
         if fresh {
-            push("这一期已经读过了，直接用现有的")
-            await loadUserRole()          // 名字/段位还是很便宜地刷一下
+            push("这一期已经读过了，用现有数据")
+            // 角色信息在后台刷一下就好，不挡界面（卡面/价格已经在屏幕上了）
+            Task { await loadUserRole() }
             restoreFlippedFlags()
             return
         }
@@ -643,6 +666,57 @@ final class AppModel {
         let bits = flipped.map { $0 ? "1" : "0" }.joined()
         UserDefaults.standard.set(["key": flipPeriodKey, "flags": bits],
                                   forKey: Self.kFlipped)
+    }
+
+    // MARK: - 冷启动缓存
+    //
+    //  为什么要有这一层：冷启动原来必须等两轮网络（角色 + 商店），之后四张卡
+    //  才开始下皮肤图（每张 1.6MB 原图）。用户看到的就是"账号和图片都要加载好一会"。
+    //  现在把上一期读到的商店和角色写在本地，`init()` 里同步铺上屏，
+    //  网络回来只是覆盖同一份数据 —— 界面上没有空窗期。
+
+    private static let kCachedSnapshot = "zw.cachedSnapshot.v1"
+    private static let kCachedRole = "zw.cachedRole.v1"
+    private static let kCachedRoles = "zw.cachedRoles.v1"
+
+    private static func loadCachedSnapshot() -> StoreSnapshot? {
+        guard let data = UserDefaults.standard.data(forKey: kCachedSnapshot) else { return nil }
+        return try? JSONDecoder().decode(StoreSnapshot.self, from: data)
+    }
+
+    private static func loadCachedRole() -> UserRole? {
+        guard let data = UserDefaults.standard.data(forKey: kCachedRole) else { return nil }
+        return try? JSONDecoder().decode(UserRole.self, from: data)
+    }
+
+    private static func loadCachedRoles() -> [UserRole]? {
+        guard let data = UserDefaults.standard.data(forKey: kCachedRoles) else { return nil }
+        return try? JSONDecoder().decode([UserRole].self, from: data)
+    }
+
+    /// 商店读成功后存一份（只有 URL 和字段，几十 KB）
+    private func cacheSnapshot() {
+        guard !snapshot.items.isEmpty,
+              let data = try? JSONEncoder().encode(snapshot) else { return }
+        UserDefaults.standard.set(data, forKey: Self.kCachedSnapshot)
+    }
+
+    private func cacheRoles() {
+        if let role = userRole, let data = try? JSONEncoder().encode(role) {
+            UserDefaults.standard.set(data, forKey: Self.kCachedRole)
+        }
+        if !availableRoles.isEmpty, let data = try? JSONEncoder().encode(availableRoles) {
+            UserDefaults.standard.set(data, forKey: Self.kCachedRoles)
+        }
+    }
+
+    private func clearCachedStore() {
+        UserDefaults.standard.removeObject(forKey: Self.kCachedSnapshot)
+    }
+
+    private func clearCachedRoles() {
+        UserDefaults.standard.removeObject(forKey: Self.kCachedRole)
+        UserDefaults.standard.removeObject(forKey: Self.kCachedRoles)
     }
 
     /// 翻一张（视图负责包 `withAnimation`）
