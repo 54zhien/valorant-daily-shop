@@ -66,28 +66,35 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
     /// 缓出：光跑起来时头快尾慢，更像"扫过去"
     private func easeOut(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
 
-    /// 品质光扫完一圈的进度（0.02 → 0.40，比上一版慢一倍）
-    private var ringProgress: Double { easeOut(window(0.02, 0.40)) }
+    /// 缓入缓出（smoothstep）：**先慢、中间快、再慢** —— 光扫一圈要这个节奏
+    private func smoothstep(_ t: Double) -> Double {
+        let x = min(max(t, 0), 1)
+        return x * x * (3 - 2 * x)
+    }
 
-    /// 抬升量：0.02→0.32 起来，0.86→1.0 落下
+    /// 品质光扫完一圈的进度：0.02 → 0.45，先慢再快再慢
+    private var ringProgress: Double { smoothstep(window(0.02, 0.45)) }
+
+    /// 抬升量。
+    /// **和扫圈同一个窗口**（0.02→0.45）—— 光转完一圈的那一刻，卡刚好抬到最高。
     private var lift: Double {
         guard !reduceMotion else { return 0 }
-        let up = easeOut(window(0.02, 0.32))
-        let down = window(0.86, 1.0)
+        let up = smoothstep(window(0.02, 0.45))
+        let down = window(0.85, 1.0)
         return up * (1 - down)
     }
 
-    /// 翻转角度：0.40→0.92 转完（光扫完之后才翻），最后 25% 加 3.2° 过冲
+    /// 翻转角度：0.45→0.95（光扫完、抬到最高之后才翻），最后 25% 加 3.2° 过冲
     private var rotationAngle: Double {
         guard !reduceMotion else { return 0 }
-        let t = window(0.40, 0.92)
+        let t = window(0.45, 0.95)
         let tail = min(max((t - 0.75) / 0.25, 0), 1)
         return t * 180 + 3.2 * sin(.pi * tail)
     }
 
-    /// 划过的那道"光头"：光扫完就收掉
+    /// 划过的那道"光头"：光扫完就收掉（留下的整圈不消失）
     private var cometOpacity: Double {
-        reduceMotion ? 0 : 1 - window(0.34, 0.48)
+        reduceMotion ? 0 : 1 - window(0.40, 0.52)
     }
 
     /// 整圈光的亮度。
@@ -97,13 +104,13 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
             // 减弱动态效果：不跑圈，只做整体淡入 → 停在常亮档
             return ZW.flipGlowResting + (1 - ZW.flipGlowResting) * sin(.pi * min(max(progress, 0), 1))
         }
-        let settle = window(0.58, 0.88)      // 翻过去的过程中把亮度收下来
+        let settle = window(0.70, 0.92)      // 翻过去的过程中把亮度收下来
         return ZW.flipGlow * (1 - settle) + ZW.flipGlowResting * settle
     }
 
     /// 换面：翻转行程的中点（0.40 与 0.92 之间）。那一刻卡片侧对镜头，换面看不见
     private var showsFront: Bool {
-        reduceMotion ? progress >= 0.5 : progress >= 0.66
+        reduceMotion ? progress >= 0.5 : progress >= 0.70
     }
 
     private var backOpacity: Double {
@@ -164,23 +171,26 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
     ///   ② 跑动的光头：一段短亮线，扫完就收
     ///   ③ 光头自己的品质色晕
     private var ring: some View {
-        let track = ZWRing(cornerRadius: cornerRadius, inset: 2)
+        // 走过的轨迹：按弧长采样的一段折线（不是 trim，所以拐角不会切块）
+        let trail = ZWRingSweep(cornerRadius: cornerRadius, inset: 2,
+                                from: 0, to: ringProgress)
+        // 跑动的光头：轨迹末端的一小段
+        let comet = ZWRingSweep(cornerRadius: cornerRadius, inset: 2,
+                                from: max(0, ringProgress - 0.22), to: ringProgress)
 
         return ZStack {
-            track
-                .trim(from: 0, to: ringProgress)
-                .stroke(accent, lineWidth: 4)
+            trail
+                .stroke(accent, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
                 .blur(radius: 6)
 
-            track
-                .trim(from: max(0, ringProgress - 0.22), to: ringProgress)
-                .stroke(Color.white.opacity(0.95), lineWidth: 2)
+            comet
+                .stroke(Color.white.opacity(0.95),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .blur(radius: 1.2)
                 .opacity(cometOpacity)
 
-            track
-                .trim(from: max(0, ringProgress - 0.22), to: ringProgress)
-                .stroke(accent, lineWidth: 3.5)
+            comet
+                .stroke(accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
                 .blur(radius: 5)
                 .opacity(cometOpacity)
         }

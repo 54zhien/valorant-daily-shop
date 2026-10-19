@@ -76,7 +76,7 @@ enum ZW {
     /// 翻牌时长。
     /// 现在是一整段编排（光跑一圈 → 抬升 → 翻转 → 落下），不是单纯翻转，
     /// 所以比原来长：0.9s。四张错开 130ms 连起来约 1.3s。
-    static let flip: Double = 1.1
+    static let flip: Double = 1.4
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 
@@ -93,7 +93,7 @@ enum ZW {
     /// 品质光的强度（扫过去那一下最亮）
     static let flipGlow: Double = 1.0
     /// 翻过来之后，光**不消失**，留在这个透明度常亮（0.38 = 38%）
-    static let flipGlowResting: Double = 0.38
+    static let flipGlowResting: Double = 0.70
 }
 
 // ============================================================================
@@ -186,50 +186,140 @@ struct ZWHatchTexture: Shape {
     }
 }
 
-/// 一个**单条连续子路径**的圆角矩形，专门用来做 `trim` 跑光。
+/// 圆角矩形轮廓上的**一段**，按弧长采样成一条连续折线。
 ///
-/// 为什么不能用 `RoundedRectangle`：它的 path 由多段子路径拼成，
-/// `trim(from:to:)` 会按**每条子路径**分别裁剪 —— 表现就是光断成四块、不连续。
-/// 这里手工拼一条闭合路径（上边 → 右上弧 → 右边 → … → 左上弧），
-/// 这样 `trim` 才是沿着轮廓一圈走的。
-struct ZWRing: Shape {
+/// 为什么不用 `Shape.trim`：trim 是按路径的**参数**分段切的，圆角矩形的
+/// 直线段和四段圆弧会被切得很碎 —— 表现就是光跑到拐角处像被切块。
+/// 这里自己按弧长均匀取点连折线，无论怎么切都是连续的一条。
+///
+/// 参数化：从**上边中点**起，顺时针一圈（t = 0…1）。
+struct ZWRingSweep: Shape {
 
     var cornerRadius: CGFloat
     var inset: CGFloat
+    /// 起点（0…1）
+    var from: Double
+    /// 终点（0…1），可以 > 1 表示绕过起点
+    var to: Double
 
-    init(cornerRadius: CGFloat, inset: CGFloat = 0) {
+    init(cornerRadius: CGFloat, inset: CGFloat = 0, from: Double, to: Double) {
         self.cornerRadius = cornerRadius
         self.inset = inset
+        self.from = from
+        self.to = to
     }
 
     nonisolated func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: inset, dy: inset)
-        let radius = max(0, min(cornerRadius, min(r.width, r.height) / 2))
-        var p = Path()
+        let a = min(from, to)
+        let b = max(from, to)
+        let span = max(b - a, 0.0001)
 
-        // 从上边中点出发，顺时针走一圈
-        p.move(to: CGPoint(x: r.midX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX - radius, y: r.minY))
-        p.addArc(center: CGPoint(x: r.maxX - radius, y: r.minY + radius),
-                 radius: radius, startAngle: .degrees(-90), endAngle: .degrees(0),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - radius))
-        p.addArc(center: CGPoint(x: r.maxX - radius, y: r.maxY - radius),
-                 radius: radius, startAngle: .degrees(0), endAngle: .degrees(90),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: r.minX + radius, y: r.maxY))
-        p.addArc(center: CGPoint(x: r.minX + radius, y: r.maxY - radius),
-                 radius: radius, startAngle: .degrees(90), endAngle: .degrees(180),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: r.minX, y: r.minY + radius))
-        p.addArc(center: CGPoint(x: r.minX + radius, y: r.minY + radius),
-                 radius: radius, startAngle: .degrees(180), endAngle: .degrees(270),
-                 clockwise: false)
-        p.closeSubpath()
-        return p
+        // 采样密度：一整圈 240 段，短片段按比例，最少 6 段
+        let count = max(6, Int(240 * min(span, 1)))
+        var path = Path()
+        for i in 0...count {
+            let t = a + span * Double(i) / Double(count)
+            let pt = Self.point(at: t, in: rect, cornerRadius: cornerRadius, inset: inset)
+            if i == 0 {
+                path.move(to: pt)
+            } else {
+                path.addLine(to: pt)
+            }
+        }
+        return path
+    }
+
+    /// 轮廓上 t ∈ [0,1] 处的点。t 可以越界（会自动取小数部分）。
+    ///
+    /// 顺序（顺时针，起于上边中点）：
+    ///   1 上边右半   2 右上弧   3 右边   4 右下弧
+    ///   5 下边       6 左下弧   7 左边   8 左上弧   9 上边左半
+    nonisolated static func point(at t: Double,
+                                  in rect: CGRect,
+                                  cornerRadius: CGFloat,
+                                  inset: CGFloat = 0) -> CGPoint {
+        let r0 = rect.insetBy(dx: inset, dy: inset)
+        let radius = max(0, min(cornerRadius, min(r0.width, r0.height) / 2))
+        let minX = r0.minX, maxX = r0.maxX
+        let minY = r0.minY, maxY = r0.maxY
+        let midX = r0.midX
+
+        // 各段长度
+        let straightH = max(0, r0.width - 2 * radius)     // 上边、下边
+        let straightV = max(0, r0.height - 2 * radius)    // 左边、右边
+        let arc = Double.pi * Double(radius) / 2          // 一个四分之一弧
+        let halfTop = straightH / 2                       // 起点的左右两半
+
+        let lengths: [CGFloat] = [halfTop, arc, straightV, arc,
+                                  straightH, arc, straightV, arc, halfTop]
+        let total = lengths.reduce(0, +)
+        guard total > 0 else { return CGPoint(x: midX, y: minY) }
+
+        // 归一化 t 到 [0, total)
+        var dist = t.truncatingRemainder(dividingBy: 1)
+        if dist < 0 { dist += 1 }
+        var remain = dist * Double(total)
+
+        func lerp(_ a: CGFloat, _ b: CGFloat, _ f: CGFloat) -> CGFloat { a + (b - a) * f }
+        func onArc(_ cx: CGFloat, _ cy: CGFloat, _ start: Double, _ f: Double) -> CGPoint {
+            let ang = start + f * (.pi / 2)
+            return CGPoint(x: cx + radius * CGFloat(cos(ang)),
+                           y: cy + radius * CGFloat(sin(ang)))
+        }
+
+        // 1 上边右半
+        if remain <= Double(lengths[0]) {
+            let f = CGFloat(remain / Double(lengths[0]))
+            return CGPoint(x: lerp(midX, maxX - radius, f), y: minY)
+        }
+        remain -= Double(lengths[0])
+        // 2 右上弧 (-90° → 0°)
+        if remain <= Double(lengths[1]) {
+            let f = remain / Double(lengths[1])
+            return onArc(maxX - radius, minY + radius, -.pi / 2, f)
+        }
+        remain -= Double(lengths[1])
+        // 3 右边
+        if remain <= Double(lengths[2]) {
+            let f = CGFloat(remain / Double(lengths[2]))
+            return CGPoint(x: maxX, y: lerp(minY + radius, maxY - radius, f))
+        }
+        remain -= Double(lengths[2])
+        // 4 右下弧 (0° → 90°)
+        if remain <= Double(lengths[3]) {
+            let f = remain / Double(lengths[3])
+            return onArc(maxX - radius, maxY - radius, 0, f)
+        }
+        remain -= Double(lengths[3])
+        // 5 下边（右 → 左）
+        if remain <= Double(lengths[4]) {
+            let f = CGFloat(remain / Double(lengths[4]))
+            return CGPoint(x: lerp(maxX - radius, minX + radius, f), y: maxY)
+        }
+        remain -= Double(lengths[4])
+        // 6 左下弧 (90° → 180°)
+        if remain <= Double(lengths[5]) {
+            let f = remain / Double(lengths[5])
+            return onArc(minX + radius, maxY - radius, .pi / 2, f)
+        }
+        remain -= Double(lengths[5])
+        // 7 左边（下 → 上）
+        if remain <= Double(lengths[6]) {
+            let f = CGFloat(remain / Double(lengths[6]))
+            return CGPoint(x: minX, y: lerp(maxY - radius, minY + radius, f))
+        }
+        remain -= Double(lengths[6])
+        // 8 左上弧 (180° → 270°)
+        if remain <= Double(lengths[7]) {
+            let f = remain / Double(lengths[7])
+            return onArc(minX + radius, minY + radius, .pi, f)
+        }
+        remain -= Double(lengths[7])
+        // 9 上边左半
+        let f = CGFloat(remain / Double(lengths[8]))
+        return CGPoint(x: lerp(minX + radius, midX, f), y: minY)
     }
 }
-
 /// 一颗品质钻：外框或实心
 struct ZWGradeMark: View {
     let tint: Color
