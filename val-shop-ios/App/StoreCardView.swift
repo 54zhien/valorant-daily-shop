@@ -162,9 +162,10 @@ struct StoreCardView: View {
     @ViewBuilder
     private var art: some View {
         if let url = item.iconURL {
-            // 自己的缓存（磁盘里存的是 340px 缩略图）：冷启动零网络，飞行模式也有图
-            CachedImage(url: url, contentMode: .fit) { placeholder }
-                .padding(10)
+            // 自己的缓存（磁盘里存的是 340px 缩略图）：冷启动零网络，飞行模式也有图。
+            // artNormalize：所有皮肤图按"面积相同 + 高度封顶"排，短枪不会比长枪大一圈
+            CachedImage(url: url, contentMode: .fit, artNormalize: true) { placeholder }
+                .padding(.horizontal, 4)
         } else {
             placeholder
         }

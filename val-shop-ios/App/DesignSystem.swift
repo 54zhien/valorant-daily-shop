@@ -59,6 +59,18 @@ enum ZW {
     /// 身份条头像
     static let avatar: CGFloat = 38
 
+    // MARK: - 卡面画心（视觉尺寸归一）
+    //
+    //  皮肤图的画布尺寸不统一（实测 512×116 / 512×144 / 512×196，
+    //  内容宽高比 2.5–3.8）。直接 scaledToFit 的话，越"方"的图（短枪、近战）
+    //  高度越顶格，看着比长枪大一圈 —— 所以按"面积相同 + 高度封顶"来排。
+    //  算法见 CachedImage.normalizedSize。
+
+    /// 每张图占 art 区的面积比例
+    static let artAreaFraction: CGFloat = 0.32
+    /// 图的高度上限（占 art 区高度的比例）—— 短枪、近战不许比长枪高一大截
+    static let artHeightCap: CGFloat = 0.62
+
     // MARK: - 动效
 
     /// 翻牌时长
