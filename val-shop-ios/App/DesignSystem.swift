@@ -90,25 +90,30 @@ enum ZW {
     /// 换面现在由 `progress ≥ 0.5` 决定（见 FlipCard），不再依赖曲线中点。
     static var flipCurve: Animation { .easeInOut(duration: flip) }
 
-    // MARK: - 翻牌的"演出"参数（效果 1 + 3）
+    // MARK: - 翻牌的"演出"参数
 
     /// 抬升：向上位移多少 pt（"向顶部抬升"）
     static let flipLiftOffset: CGFloat = 7
     /// 抬升时顺带放大多少（0.04 = 4%，和位移一起才有"离开桌面"的错觉）
     static let flipLiftScale: CGFloat = 0.04
-    /// 品质光的强度（扫过去那一下最亮）
-    static let flipGlow: Double = 1.0
-    /// 翻过来之后，光**不消失**，留在这个透明度常亮（0.70 = 70%）
-    static let flipGlowResting: Double = 0.70
 
-    /// 光头起步的加速段占行程的比例（之后全程匀速，收尾不减速）。
-    /// 越小越像"一开始就全速"；0 = 硬起，会有"光弹一下"的错觉。
-    static let flipFlowRamp: Double = 0.08
+    // 光效分成两层：一根细线 + 线外面的一圈光晕。
+    // 细线从点下去就有，绕完一圈也一直在；光晕只在"转完一圈"之后才亮起来。
 
-    /// 卡外那圈淡光：往外扩多少 pt（外扩 4 + 模糊 8 ≈ 卡外 10pt 柔光）
-    static let flipHaloInset: CGFloat = 4
-    /// 卡外光晕常亮档的强度 —— 只是"透出来一点"，比卡内那圈（0.70）淡一半还多
-    static let flipHaloResting: Double = 0.45
+    /// 品质细线：走在卡牌**外面**那一圈（外扩 pt —— 是包在外面，不是缩在卡里）
+    static let flipLineInset: CGFloat = 2.5
+    /// 细线粗细 —— 要"细细的一根"，宁可窄也不要粗
+    static let flipLineWidth: CGFloat = 1.5
+    /// 细线本身的透明度
+    static let flipLineOpacity: Double = 0.95
+
+    /// 细线外面那层光晕（画在卡底后面 → 只露在卡外）：粗细 / 模糊
+    static let flipGlowBand: CGFloat = 4
+    static let flipGlowBlur: CGFloat = 8
+    /// 光晕的峰值 —— "转完一圈，这根细线开始发光"
+    static let flipGlowPeak: Double = 0.90
+    /// 落定之后的光晕 —— **比裸线亮一点点**，不是完全灭掉
+    static let flipRestGlow: Double = 0.40
 }
 
 // ============================================================================

@@ -196,12 +196,12 @@ body{
 }
 .card .flipper{
   position:absolute;inset:0;transform-style:preserve-3d;
-  /* 0.70s = 1.4s 的 0.50，0.59s = 翻转窗口 0.50→0.92 —— 和 App 侧
-     rotationAngle(0.50→0.92) 同一段：光走完一圈、卡抬到最高、定格一拍，才起翻。
+  /* 0.81s = 1.4s 的 0.58，0.48s = 翻转窗口 0.58→0.92 —— 和 App 侧
+     rotationAngle(0.58→0.92) 同一段：细线走完、开始发光、卡抬到最高，才起翻。
      翻回来不延迟，点一下立刻往回走。 */
-  transition:transform .59s cubic-bezier(.42,0,.58,1);
+  transition:transform .48s cubic-bezier(.42,0,.58,1);
 }
-.card.flipped .flipper{transform:rotateY(180deg);transition-delay:.70s}
+.card.flipped .flipper{transform:rotateY(180deg);transition-delay:.81s}
 
 /* 卡面：反向预旋转 180°（外层再转 180° 就正好是正的）
    裁切用 clip-path，不用 overflow:hidden ——
@@ -218,37 +218,38 @@ body{
 
 /* ==========================================================================
    翻牌的整段编排（和 App 侧 FlipCard.swift 的时间窗口一一对应）
-     0.00–0.05  品质光起头（亮起来，但不硬切）
-     0.02–0.46  光匀速绕卡一圈：起步 8% 加速、之后全程匀速，0.46 正好合拢；
-                **同一时刻卡牌抬到最高**（同一个窗口）
-     0.46–0.50  定格一拍（约 56ms）：一圈刚合拢、卡停在最高点
-     0.50–0.92  翻转（抬着翻）
-     0.92–1.00  落下，整圈光收成常亮；0.62 起卡外透出一圈淡光（.aura）
-   总时长 1.4s。顺序上的硬规矩：**光环走完一圈，卡才翻**。
+     0.00–0.04  品质细线亮起
+     0.02–0.48  细线沿卡牌**外面**绕一圈：慢 → 快 → 慢（smoothstep），0.48 合拢
+     0.44–0.50  光头收线（合拢处不留亮点）
+     0.46–0.58  细线开始发光（光晕 0 → 峰值）**同时**卡被捏到最高点
+     0.58–0.92  翻转（抬着翻）
+     0.92–1.00  落下；光晕从峰值收到 0.40 —— 比裸线亮一点点，不是灭掉
+   总时长 1.4s。
    ========================================================================== */
 
-/* 抬升 + 落下（位移 + 轻微放大 + 底部阴影） */
+/* 抬升 + 落下（位移 + 轻微放大 + 底部阴影）。
+   0.58 才抬到最高 —— 细线走完一圈（0.48）并开始发光之后，卡才被"捏起来"，然后翻。 */
 .card.flipped{animation:zwLift 1.4s cubic-bezier(.42,0,.58,1)}
 @keyframes zwLift{
   0%  {transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
-  46% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
+  58% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
   92% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
   100%{transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
 }
 
-/* 品质光：沿卡牌边缘**越扫越长**的一条轨迹（≈ App 侧 ZWRingSweep(from:0, to:ringProgress)）。
-   三层拆开画 —— 这是这张卡最容易写错的地方：
-     .sweep         **不动的环**：圆角矩形的环形遮罩
-     .sweep::before 里面那张 conic 渐变：靠 `--sweep` 从 0° 长到 360°，轨迹越走越长
+/* 品质**细线**：在卡牌**外面** 2.5px 处，1.5px 粗，绕着卡边越扫越长
+   （≈ App 侧 ZWRingSweep(inset: -2.5) + stroke 1.5）。
+   三层拆开画，这是这张卡最容易写错的地方：
+     .sweep         不动的**细环**：圆角矩形的环形遮罩（只在卡外 2.5px，宽度 1.5px）
+     .sweep::before 走过的轨迹：靠 --sweep 从 0° 长到 360°
+     .sweep::after  光头：最后 18°，白一点，合拢时收掉
    ⚠️ 不能靠 `rotate` 整个元素来"扫"：环的形状会跟着转，卡牌四角会支出一截白光。
-   ⚠️ 遮罩也不能用 radial-gradient：那是内切椭圆，在圆角处离边很远，光带会从侧面中段支出来。
-   ⚠️ 弧带"转一圈"也不够：App 是**轨迹累积**（走过的路立刻留下），
-   只画一条固定弧带的话，"合拢"那一刻在画面上根本不成立 —— 弧带只会淡出。
-   --sweep 每一档都按 `flow()` 算：起步 8% 加速、之后匀速，46% 正好 360°（合拢）。 */
-@property --sweep{syntax:'<number>';initial-value:0;inherits:false}
+   ⚠️ 遮罩也不能用 radial-gradient：那是内切椭圆，圆角处离边很远，线会从侧面支出来。
+   --sweep 按 smoothstep 算：慢 → 快 → 慢，48% 正好 360°（合拢）。 */
+@property --sweep{syntax:'<number>';initial-value:0;inherits:true}
 .card .sweep{
-  position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
-  padding:4px;                       /* 光带宽度（≈ App 侧 stroke 4） */
+  position:absolute;inset:-2.5px;border-radius:calc(var(--r-card) + 2.5px);
+  padding:1.5px;                     /* 细线粗细（≈ App 侧 1.5pt） */
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
@@ -258,64 +259,69 @@ body{
 /* inset -110%：比卡大一圈还有余，够铺满整框 */
 .card .sweep::before{
   content:"";position:absolute;inset:-110%;
-  --sweep:0;
   background:conic-gradient(from 0deg,
-      rgba(255,255,255,.55) 0deg,
-      color-mix(in srgb,var(--tier) 85%,transparent) calc((var(--sweep) - 120) * 1deg),
-      color-mix(in srgb,var(--tier) 85%,white) calc((var(--sweep) - 24) * 1deg),
-      #fff calc(var(--sweep) * 1deg),
+      color-mix(in srgb,var(--tier) 92%,white) calc(var(--sweep) * 1deg),
       transparent calc(var(--sweep) * 1deg) 360deg);
 }
-.card.flipped .sweep{animation:zwSweepFade 1.4s linear}
-.card.flipped .sweep::before{animation:zwSweep 1.4s linear}
-/* 46%（光环合拢）由卡内的常亮环接手：46→54% 之间交叉淡出 */
-@keyframes zwSweepFade{
-  0%{opacity:0} 5%{opacity:1} 46%{opacity:1} 54%{opacity:0}
+/* 光头：最后 18°，比细线更白、收线时先消失。
+   基础态必须 opacity:0 —— 否则 1.4s 动画一结束，伪元素就回到"可见"，
+   卡顶会永久留下一小截白线（和当初那个"光点"是同一类问题）。 */
+.card .sweep::after{
+  content:"";position:absolute;inset:-110%;opacity:0;
+  background:conic-gradient(from 0deg,
+      transparent 0deg calc((var(--sweep) - 18) * 1deg),
+      rgba(255,255,255,.95) calc(var(--sweep) * 1deg),
+      transparent calc(var(--sweep) * 1deg) 360deg);
 }
-/* 扫过的角度：0 → 360，46% 走满后**不再动**（合拢就停，不绕第二圈） */
+/* --sweep 挂在 .sweep 上（inherits:true），两个伪元素一起读；
+   细线点下去就亮（zwLineFade），扫的角度靠 zwSweep 推。
+   ⚠️ 必须 `forwards`：不然 1.4s 动画一结束，`.sweep` 就回到基础态 opacity:0 ——
+   翻完之后那根细线会凭空消失（踩过一次，静态截图里看不出来，动起来才明显）。 */
+.card.flipped .sweep{
+  animation:zwLineFade 1.4s linear forwards,
+            zwSweep 1.4s linear forwards;
+}
+.card.flipped .sweep::after{animation:zwHeadFade 1.4s linear}
+/* 细线点下去就亮，之后一直留着 */
+@keyframes zwLineFade{
+  0%{opacity:0} 4%{opacity:1} 100%{opacity:1}
+}
+/* 光头：合拢前收掉（44% → 50%） */
+@keyframes zwHeadFade{
+  0%{opacity:0} 4%{opacity:1} 44%{opacity:1} 50%{opacity:0} 100%{opacity:0}
+}
+/* 扫过的角度：0 → 360（慢→快→慢），48% 走满后不再动（合拢就停） */
 @keyframes zwSweep{
   0%  {--sweep:0}
-  5%  {--sweep:10.9}
-  10% {--sweep:53.2}
-  15% {--sweep:95.8}
-  20% {--sweep:138.4}
-  25% {--sweep:181}
-  30% {--sweep:223.6}
-  35% {--sweep:266.3}
-  40% {--sweep:308.9}
-  45% {--sweep:351.5}
-  46% {--sweep:360}
+  5%  {--sweep:4.4}
+  10% {--sweep:28.9}
+  15% {--sweep:70}
+  20% {--sweep:122.2}
+  25% {--sweep:180}
+  30% {--sweep:237.8}
+  35% {--sweep:290}
+  40% {--sweep:331.1}
+  45% {--sweep:355.6}
+  48% {--sweep:360}
   100%{--sweep:360}
 }
 
-/* 翻完之后：整圈品质光**常亮**（约 70%），不消失。
-   同样挂在 `.flipper` 上（跟着卡转，不在卡外面悬着）。
-   常态就存在、只是 opacity:0 —— 0.64s（= 46%）才淡入，也就是**光环刚合拢的时刻**
-   由它接手；之前的"跑动"由 .sweep 画。 */
-.card .flipper::after{
-  content:"";position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
-  box-shadow:inset 0 0 0 1.5px var(--tier),
-             0 0 6px color-mix(in srgb,var(--tier) 55%,transparent);
-  opacity:0;pointer-events:none;
-  transition:opacity .15s ease;
-}
-.card.flipped .flipper::after{opacity:.70;transition-delay:.64s}
-
-/* 卡外那圈淡光（App 侧 FlipCard.outerHalo）：
-   inset -4 + 描边 6 + blur 4 ≈ 卡外 9–10px 的柔光。
-   它画在卡面**下面**（DOM 里排第一），卡片自己的不透明底会把朝内那半盖住 ——
-   所以只在卡片轮廓外面露出来，卡里一点都不会被冲淡。 */
+/* 线外面那圈光晕（App 侧 edgeGlow）：**转完一圈才亮起来**，落地收到 0.40
+   —— 比裸线亮一点点，不是灭掉。
+   画在卡面**下面**（DOM 里排第一），卡片自己的不透明底把朝内那半盖住，
+   所以只在卡外露出来，"包在外面"是几何保证的。 */
 .card .aura{
-  position:absolute;inset:-4px;border-radius:calc(var(--r-card) + 4px);
-  border:6px solid color-mix(in srgb,var(--tier) 55%,transparent);
-  filter:blur(4px);
+  position:absolute;inset:-2.5px;border-radius:calc(var(--r-card) + 2.5px);
+  border:4px solid color-mix(in srgb,var(--tier) 80%,transparent);
+  filter:blur(6px);
   opacity:0;pointer-events:none;
 }
-.card.flipped .aura{animation:zwAura 1.4s ease-out both}
-@keyframes zwAura{
-  0%,62%{opacity:0}
-  84% {opacity:.32}
-  100%{opacity:.45}
+.card.flipped .aura{animation:zwGlow 1.4s ease-out both}
+@keyframes zwGlow{
+  0%,46%{opacity:0}
+  58% {opacity:.90}
+  90% {opacity:.90}
+  100%{opacity:.40}
 }
 
 .back-art{position:absolute;inset:0;
@@ -943,8 +949,8 @@ function cardHTML(d, flipped){
   const tier = `var(${d.tier})`;
   return `
   <div class="card ${flipped?'flipped':''}" style="--tier:${tier}">
-   <div class="aura"></div>
    <div class="flipper">
+    <div class="aura"></div>
     <div class="face back">
       <div class="back-art"></div>
       <div class="back-frame"></div>
