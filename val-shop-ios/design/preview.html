@@ -206,11 +206,27 @@ body{
 
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);perspective:1100px}
 
-/* ---------- 卡（内容，不透明）---------- */
-/* 卡片：外壳只负责尺寸和底，旋转交给里面的 .flipper 一层（3D 上下文只存在于这一层） */
+/* ---------- 卡（液态玻璃）---------- */
+/* 卡面：Apple 液态玻璃（App 侧是系统原生 glassEffect）。这里是手写近似：
+   半透明材质 + 背景模糊/加饱和 + 内高光 + 左上到右下的边缘镜面。
+   ⚠️ 玻璃必须挂在 `.card::before`（伪元素是 flipper 的**兄弟**，不是祖先）：
+   把 backdrop-filter 挂在 `.card` 上会压平里面那层的 3D 上下文，翻牌就只剩卡背了 ——
+   这条坑在 README「会翻的那层不能上模糊/裁剪」里记着。 */
 .card{
-  position:relative;aspect-ratio:6/7;background:var(--grouped-bg);border-radius:var(--r-card);
+  position:relative;aspect-ratio:6/7;border-radius:var(--r-card);
   cursor:pointer;
+}
+/* 玻璃挂在 **.flipper 的伪元素**上：它跟着卡一起转，翻到侧身时会被一起压扁。
+   挂 .card 上的话，卡转了玻璃还是平的 —— 会留一块不动的板子在后面。 */
+.card .flipper::before{
+  content:"";position:absolute;inset:0;border-radius:var(--r-card);pointer-events:none;
+  background:linear-gradient(135deg,rgba(255,255,255,.22),transparent 46%),
+             linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05) 62%);
+  backdrop-filter:blur(18px) saturate(1.6);
+  -webkit-backdrop-filter:blur(18px) saturate(1.6);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),
+             inset 0 1px 0 rgba(255,255,255,.24),
+             inset 0 -1px 0 rgba(0,0,0,.32);
 }
 .card .flipper{
   position:absolute;inset:0;transform-style:preserve-3d;
@@ -229,7 +245,7 @@ body{
   position:absolute;inset:0;
   backface-visibility:hidden;-webkit-backface-visibility:hidden;
   display:flex;flex-direction:column;
-  border-radius:var(--r-card);background:var(--grouped-bg);
+  border-radius:var(--r-card);background:transparent;
   clip-path:inset(0 round var(--r-card));
 }
 .card .face.front{transform:rotateY(180deg)}

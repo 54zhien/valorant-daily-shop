@@ -323,6 +323,10 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 > 验算台：[`probe/animatable_probe.swift`](probe/animatable_probe.swift)，三种写法 + 一组会失败的对照。
 
 > 玻璃卡片之间的 morph 效果没了。卡片现在是**内容**，内容层不上玻璃（规矩三）。
+>
+> **例外：卡牌本身**。这一版把卡面换成了系统原生液态玻璃（`zwCardGlass()`），
+> 想退回不透明卡底：`git checkout pre-card-glass`（tag 打在 `4b93be6`，
+> 也就是换玻璃之前的最后一版），或者直接 revert 这个提交。
 
 ### token 在哪（`App/DesignSystem.swift`）
 
@@ -335,7 +339,7 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 | 品质五档 | `Rarity.colorHex` —— 服务端数据（掌瓦 `ic_val_goods_quality_1..5`），**不可改** |
 | 字号 | Dynamic Type 文本样式，见上表 |
 | 两处腔调 | 机器腔 `.system(style).weight(.heavy).width(.compressed)`（**只排拉丁小标**）；数据腔 `.system(style, design: .monospaced)` |
-| 几何 | 分组 16 / 卡片 24 / 玻璃条 26 / 小控件 11 / 发丝线 1 / 页边 16 / 块间距 12 / **卡阵间距 20**（`cardGap`）/ 引信条宽 80（`fuseWidth`） |
+| 几何 | 分组 16 / 卡片 24 / 玻璃条 26 / 小控件 11 / 发丝线 1 / 页边 16 / 块间距 12 / **卡阵间距 20**（`cardGap`）/ 引信条最小宽 64（`fuseWidth`） |
 | 自绘形状 | `ZWDiamond`、`ZWHatchTexture` —— 附几何验算台 |
 
 ### 冷启动与图片缓存
@@ -387,7 +391,7 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 | 要求 | 实现 |
 |---|---|
 | Liquid Glass | 玻璃**只作控件层材质**（HIG Materials）：`TabView` / `NavigationStack` / `.sheet` 全由系统出玻璃；按钮用 `ButtonStyle.glass` ⇄ `glassProminent`；`.tabBarMinimizeBehavior(.onScrollDown)`；`.scrollEdgeEffectStyle(.soft, for:)` 走 `zwScrollEdge()`。`glassEffect` 只在 `zwGlassCard()` 里出现一次（身份条），圆角走 `ZW.radiusGlass = 26` |
-| 内容层材质 | 不透明：`Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`，全部系统语义色。身份条例外：液态玻璃（`zwGlassCard()`） |
+| 内容层材质 | 不透明：`Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`，全部系统语义色。例外两处：身份条（`zwGlassCard()`）与**卡牌**（`zwCardGlass()`），都是系统原生 `glassEffect` |
 | 颜色来源 | 品牌红青绿在 `Assets.xcassets` 的 colorset；文字只用 `.primary/.secondary/.tertiary`（HIG Color） |
 | 外观 | `Info.plist` 声明 `UIUserInterfaceStyle = Dark`，纯深色 App（HIG Supporting Dark Mode） |
 | 字体 | 全部 Dynamic Type 文本样式；两处腔调 = 系统字体 + `weight`/`width`/`design`，无第三方字体（HIG Typography） |

@@ -45,4 +45,25 @@ extension View {
         glassEffect(.regular.interactive(),
                     in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
+
+    /// 卡牌用的液态玻璃：系统 `glassEffect` + 一圈边缘镜面高光。
+    ///
+    /// 只给 `FlipCard` 用（卡面就是一块玻璃）。玻璃画在内容**后面**，
+    /// 所以卡背斜纹、卡面品质渐变、名字价格都还在它上面。
+    /// 和 `zwGlassCard` 的区别：这个不带 `.interactive()`（卡片不是控件，
+    /// 按住时不该有形变反馈）。
+    func zwCardGlass(_ radius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return glassEffect(.regular, in: shape)
+            .overlay {
+                // 玻璃的"边缘镜面"：左上亮、右下收，是一块玻璃最容易被认出来的特征
+                shape.strokeBorder(
+                    LinearGradient(colors: [.white.opacity(0.30),
+                                            .white.opacity(0.04),
+                                            .white.opacity(0.12)],
+                                   startPoint: .topLeading,
+                                   endPoint: .bottomTrailing),
+                    lineWidth: 0.8)
+            }
+    }
 }

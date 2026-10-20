@@ -175,8 +175,10 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
                 .opacity(frontOpacity)
         }
         .clipShape(shape)
-        .background(Color(.secondarySystemGroupedBackground), in: shape)
-        // 晕染光画在不透明卡底**后面** → 只露在卡外，卡里一点不被冲淡
+        // 卡面：Apple 液态玻璃（取代原来的不透明分组底），见 LiquidGlass.zwCardGlass
+        .zwCardGlass(cornerRadius)
+        // 晕染光画在玻璃**后面**：玻璃是半透的，所以边缘会透进一点点光 ——
+        // 这正是玻璃该有的样子；要高对比就把 edgeGlow 的不透明度调回去。
         .background { edgeGlow }
         // 细线画在卡边（overlay 不受 clipShape 影响，负 inset 会往外扩）
         .overlay { edgeLine }
