@@ -101,8 +101,12 @@ enum ZW {
     // 细线从点下去就有，绕完一圈也一直在；光晕只在"转完一圈"之后才亮起来。
 
     /// 品质细线：**贴着卡边**（外扩 0.5pt ≈ 压在轮廓上），而且要"细细一根"
+    ///
+    /// 0.7pt：3x 屏上约 2px，仍然是一根线而不是一条边。
+    /// **扫的时候和翻完之后是同一根线、同一个宽度**（`edgeLine` 只画一份，
+    /// 落地只降不透明度、不改粗细），所以两边天然同步。
     static let flipLineInset: CGFloat = 0.5
-    static let flipLineWidth: CGFloat = 1.0
+    static let flipLineWidth: CGFloat = 0.6
     /// 细线正常亮度 / 落定之后的亮度 —— **不是完全消失**，只是降下来
     static let flipLineOpacity: Double = 1.0
     static let flipLineRestOpacity: Double = 0.55
@@ -111,8 +115,8 @@ enum ZW {
     static let flipGlowBand: CGFloat = 6
     static let flipGlowBlur: CGFloat = 12
     /// 晕染光的"紧光层"：贴着细线再压一层，翻转那一下的"重"主要来自它
-    static let flipGlowCoreBand: CGFloat = 3
-    static let flipGlowCoreBlur: CGFloat = 2.5
+    static let flipGlowCoreBand: CGFloat = 2.5
+    static let flipGlowCoreBlur: CGFloat = 2
     /// 细线转动时的那层薄晕（"转的时候也得有点晕染"）
     static let flipGlowDuringSweep: Double = 0.35
     /// 抬起 / 翻转时的峰值 —— 这一段光要**再重一点**

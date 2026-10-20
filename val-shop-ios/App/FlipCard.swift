@@ -217,9 +217,9 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
                                            lineCap: .round, lineJoin: .round))
 
             head.stroke(Color.white.opacity(0.9),
-                        style: StrokeStyle(lineWidth: ZW.flipLineWidth + 0.8,
+                        style: StrokeStyle(lineWidth: ZW.flipLineWidth + 0.5,
                                            lineCap: .round, lineJoin: .round))
-                .blur(radius: 0.6)
+                .blur(radius: 0.5)
                 .opacity(cometOpacity)
         }
         .opacity(lineOpacity)

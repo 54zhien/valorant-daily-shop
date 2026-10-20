@@ -258,7 +258,7 @@ body{
 @property --sweep{syntax:'<number>';initial-value:0;inherits:true}
 .card .sweep{
   position:absolute;inset:-0.5px;border-radius:calc(var(--r-card) + 0.5px);
-  padding:1px;                       /* 细线粗细（≈ App 侧 1pt） */
+  padding:0.6px;                     /* 细线粗细（≈ App 侧 0.6pt；扫的时候和翻完之后同一个宽度） */
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
@@ -324,7 +324,7 @@ body{
 }
 .card .aura::before{
   content:"";position:absolute;inset:0;
-  padding:4px;                       /* 晕染的宽度 */
+  padding:3.5px;                     /* 晕染的宽度 */
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
