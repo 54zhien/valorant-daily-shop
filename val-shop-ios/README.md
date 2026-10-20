@@ -268,25 +268,44 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 不再是"旋转一段 + 延迟换面一段"，而是 `FlipCard.swift` 里**一个 `progress: 0→1`**，
 其余全是它的函数：
 
-点击之后按顺序发生五件事，全部是 `progress` 的一段窗口函数（`window(p, from:to:)`）：
+点击之后按顺序发生这些事，全部是 `progress` 的一段窗口函数（`window(p, from:to:)`）：
 
 | 时间段 | 发生什么 |
 |---|---|
-| `0.02 – 0.45` | **品质光绕卡一圈**，`smoothstep` 曲线（先慢 → 中间快 → 再慢）；走过的轨迹立刻留下，不消失 |
-| `0.02 – 0.45` | **向顶部抬升**（位移 7pt + 放大 4%），和扫圈**同一个窗口** —— 光刚好转完一圈时卡抬到最高 |
+| `0.00 – 0.06` | 品质光起头（很快亮起来，不硬切） |
+| `0.02 – 1.00` | **品质光绕卡一圈**，`flow()` = 起步 8% 加速 → **全程匀速** → 收尾不减速；走过的轨迹立刻留下，不消失 |
+| `0.02 – 0.45` | **向顶部抬升**（位移 7pt + 放大 4%），光绕到一半时卡抬到最高 |
 | `0.45 – 0.95` | **翻转**（抬着翻），末尾 3.2° 过冲再回正 |
 | `0.70` | **换面** —— 翻转行程的中点，卡片侧对镜头，看不见 |
 | `0.85 – 1.00` | **落下**，阴影收拢 |
-| `0.70 – 0.92` | 整圈光收到 `ZW.flipGlowResting = 0.70` —— **只弱一点点，之后一直亮着** |
+| `0.90 – 1.00` | 整圈光收到 `ZW.flipGlowResting = 0.70` —— **只弱一点点，之后一直亮着** |
+| `0.62 – 1.00` | **卡外那圈淡光**（`outerHalo`）从卡边渗出来，常亮 `ZW.flipHaloResting = 0.55` |
 
 总时长 `ZW.flip = 1.4s`，四张错开 130ms，连起来约 1.8s。
 **可逆**：翻到一半再点，进度从当前值往回走，整段编排倒放。
 
+> **光为什么"不滞留"**：旧版扫圈窗口只到 `0.45`，后半段光彻底不动，看着就是
+> "最后四分之一在滞留"。现在窗口铺满 `0.02 → 1.00`，速度曲线换成 `flow()`：
+> 只在起步 8% 加速，之后匀速一路走满 360°，**收尾不减速** —— 圆环是周期图形，
+> 走满一圈正好接回起点，减速反而是新的滞留。停车感交给 `cometOpacity` 的淡出。
+> 速度验算台：[`probe/flow_probe.swift`](probe/flow_probe.swift) —— 逐帧（84 帧）角速度
+> 最大/平均 1.063、末帧仍满速；同一套指标下旧曲线 84 帧里 47 帧速度为 0。
+
+> **卡外那圈光**（`outerHalo`）：外扩 `ZW.flipHaloInset = 4pt` 的圆角描边 + 同量模糊，
+> 画在**不透明卡底后面** —— 只在卡片轮廓外面露出来，卡内一点不被冲淡。
+> 外扩约 10pt，所以 2×2 卡阵间距用了 `ZW.cardGap = 20`：相邻两张各留 10pt，
+> 光刚好留在自己那块地方。想加粗外晕，先把 `cardGap` 一起放大。
+
 > **光怎么画的**：`ZWRingSweep` 按**弧长**在圆角矩形轮廓上采样成折线。
 > 不能用 `Shape.trim` —— 它按路径参数分段切，直线段和四段圆弧会被切碎，
 > 表现就是光在拐角处"分成几块"（踩过两次）。
-> 几何验算台：[`probe/ring_probe.swift`](probe/ring_probe.swift) —— 6 项全过，
+> 几何验算台：[`probe/ring_probe.swift`](probe/ring_probe.swift) —— 9 项全过，
 > 采样间距实测 0.350 完全均匀。
+>
+> **零长度的 sweep 不画**（`from == to` → 空路径）：起点在上边中点，
+> 零长度折线配上 `lineCap: .round` 会在那儿戳出一个圆帽 ——
+> 未翻开的卡顶上那颗光点就是它。`ringOpacity` 在 `progress == 0` 时也硬返回 0，
+> 双层保证「没翻开的卡一点光都没有」（`③` 那条退化检查在验算台里）。
 
 > 那道光用的是**品质色**（`accent`）。不想在翻之前剧透档位，就把 `StoreCardView` 里
 > 传的 `accent: tint` 换成 `accent: .white` —— 一行。
@@ -310,7 +329,7 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 | 品质五档 | `Rarity.colorHex` —— 服务端数据（掌瓦 `ic_val_goods_quality_1..5`），**不可改** |
 | 字号 | Dynamic Type 文本样式，见上表 |
 | 两处腔调 | 机器腔 `.system(style).weight(.heavy).width(.compressed)`（**只排拉丁小标**）；数据腔 `.system(style, design: .monospaced)` |
-| 几何 | 分组 16 / 卡片 20 / 小控件 11 / 发丝线 1 / 页边 16 |
+| 几何 | 分组 16 / 卡片 20 / 小控件 11 / 发丝线 1 / 页边 16 / 块间距 12 / **卡阵间距 20**（`cardGap`，留地方给翻牌的外晕） |
 | 自绘形状 | `ZWDiamond`、`ZWHatchTexture` —— 附几何验算台 |
 
 ### 冷启动与图片缓存
@@ -347,6 +366,9 @@ swiftc -typecheck -swift-version 6 -default-isolation MainActor `
 # 几何对账：品质钻 / 卡背斜纹的路径点真的算出来对一遍
 swiftc -O geometry_probe.swift -o geo.exe; .\geo.exe
 swiftc -O ring_probe.swift -o ring.exe; .\ring.exe
+
+# 翻牌光带的速度曲线：逐帧角速度 / 末帧不许停 / 四段各走 90°
+swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 ```
 
 > `isolation_probe.swift` 不是作业，是**结论的存档**：它证明了在这个 target 的设置下

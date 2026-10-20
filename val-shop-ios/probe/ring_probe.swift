@@ -166,6 +166,25 @@ check((segGaps.max() ?? 0) < segIdeal * 1.6,
       "最后 22% 一段内采样连续",
       "理想 \(fmt(segIdeal))，实际最大 \(fmt(segGaps.max() ?? 0))")
 
+// ⑦ 退化保护：`from == to` 时必须**不画**。
+//    否则 stroke 的圆帽会在起点（上边中点）戳出一个圆点 ——
+//    未翻开的卡顶上那颗光点就是这么来的。
+//    规则和 `ZWRingSweep.path(in:)` 里逐字一致：按**弧长**判，不按 span 判。
+func sampleCount(span: Double, in rect: Rect) -> Int {
+    let perimeter = 2 * (Double(rect.width) + Double(rect.height))
+    guard span > 0, span * perimeter >= 0.5 else { return 0 }
+    return max(6, Int(240 * min(span, 1)))
+}
+let perimeter = 2 * (Double(rect.width) + Double(rect.height))
+check(sampleCount(span: 0, in: rect) == 0,
+      "span = 0 → 空路径（未翻开的卡顶不留光点）", "0 个采样点")
+check(sampleCount(span: 0.0001, in: rect) == 0,
+      "span 极小 → 空路径",
+      "弧长 \(fmt(CGFloat(0.0001 * perimeter)))pt < 0.5pt")
+check(sampleCount(span: 0.02, in: rect) >= 6,
+      "正常片段照画",
+      "\(sampleCount(span: 0.02, in: rect)) 个采样点")
+
 print("")
 print(failures == 0 ? "全部通过" : "有 \(failures) 项不通过")
 exit(failures == 0 ? 0 : 1)

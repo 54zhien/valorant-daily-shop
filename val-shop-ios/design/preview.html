@@ -52,7 +52,9 @@
   --r-card:20px;
   --r-control:11px;
   --pad:16px;
-  --gap:12px;
+  /* 卡阵间距：翻牌时光会从卡边往外渗 10pt 左右（见 .card .aura），
+     间距得留够，不然光会糊到隔壁卡上。App 侧同值：ZW.cardGap */
+  --gap:20px;
 
   color-scheme:dark;
 }
@@ -194,9 +196,11 @@ body{
 }
 .card .flipper{
   position:absolute;inset:0;transform-style:preserve-3d;
-  transition:transform .5s cubic-bezier(.42,0,.58,1);
+  /* 0.63s = 1.4s 的 0.45 —— 和 App 侧 rotationAngle(0.45→0.95) 同一段窗口：
+     光先跑，跑到一半卡才抬着翻。翻回来不延迟，点一下立刻往回走。 */
+  transition:transform .7s cubic-bezier(.42,0,.58,1);
 }
-.card.flipped .flipper{transform:rotateY(180deg)}
+.card.flipped .flipper{transform:rotateY(180deg);transition-delay:.63s}
 
 /* 卡面：反向预旋转 180°（外层再转 180° 就正好是正的）
    裁切用 clip-path，不用 overflow:hidden ——
@@ -213,11 +217,13 @@ body{
 
 /* ==========================================================================
    翻牌的整段编排（和 App 侧 FlipCard.swift 的时间窗口一一对应）
-     0.00–0.30  品质光沿边缘跑一圈，把卡包起来
-     0.02–0.30  向顶部抬升，底部阴影拉开
-     0.32–0.88  翻转（抬着翻）
-     0.82–1.00  落下，阴影收拢，光淡出
-   总时长 0.9s
+     0.00–0.06  品质光起头（亮起来，但不硬切）
+     0.02–1.00  光**匀速**绕卡一圈 —— 起步一小段加速，之后一路匀速走满 360°，
+                收尾不减速（减速就是"滞留"的来源，见下面 zwRing 的注释）
+     0.00–1.00  抬升 → 抬着翻 → 落下（zwLift 同一段窗口）
+     0.90–1.00  走完整圈，卡内的常亮环接手
+     0.62–1.00  卡外透出一圈淡光（.aura）
+   总时长 1.4s
    ========================================================================== */
 
 /* 抬升 + 落下（位移 + 轻微放大 + 底部阴影） */
@@ -229,31 +235,89 @@ body{
   100%{transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
 }
 
-/* 品质光绕一圈：conic 渐变 + 环形遮罩，靠旋转扫过整圈 */
-.card::before{
-  content:"";position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
-  background:conic-gradient(from 0deg,
-      transparent 0 52%, rgba(255,255,255,.95) 86%, transparent 100%);
-  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
-          mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+/* 品质光：一条沿卡牌边缘扫过去的光带（≈ App 侧 ZWRingSweep + stroke 4）。
+   必须拆成两层画 —— 这是这张卡最容易写错的地方：
+     .sweep         **不动的环**：圆角矩形的环形遮罩
+     .sweep::before 里面那张 conic 渐变在自己转 —— 转的是光，不是环
+   ⚠️ 直接把 conic+mask 放在一个 rotate 的元素上，环的形状会跟着转，
+   卡牌四角就会支出一截白光（这版之前就是，翻到一半能看见白楔子）。
+   ⚠️ 遮罩也不能用 radial-gradient：那是内切椭圆，在圆角处离边很远，
+   光带会从侧面中段支出来一小块。
+   rotate 每一档都按 `flow()` 算：起步 8% 加速、之后全程匀速、收尾不减速，
+   所以 10% 之后任何相邻两档都是整 18.75°，没有一档原地不动 ——
+   旧版 50% 就停在 270° 不动、后半段只淡出，眼睛看到的就是"最后四分之一在滞留"。 */
+.card .sweep{
+  position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
+  padding:4px;                       /* 光带宽度（≈ App 侧 stroke 4） */
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
   opacity:0;pointer-events:none;
 }
-.card.flipped::before{animation:zwRing 1.4s linear}
-/* 慢 → 快 → 慢：靠三段不同的 timing-function 拼出来 */
-@keyframes zwRing{
-  0%  {opacity:0;transform:rotate(-90deg);animation-timing-function:ease-in}
-  6%  {opacity:1;transform:rotate(-72deg);animation-timing-function:ease-in-out}
-  30% {transform:rotate(120deg);animation-timing-function:ease-out}
-  44% {transform:rotate(258deg)}
-  50% {opacity:.9;transform:rotate(270deg)}
-  100%{opacity:0;transform:rotate(270deg)}
+/* inset -110%：比卡大一圈还有余，转到任何角度都铺满整框 */
+.card .sweep::before{
+  content:"";position:absolute;inset:-110%;
+  background:conic-gradient(from 0deg,
+      transparent 0 52%, rgba(255,255,255,.95) 86%, transparent 100%);
+  transform:rotate(-90deg);
 }
-/* 翻完之后：整圈品质光**常亮**（约 38%），不消失 */
-.card.flipped::after{
+.card.flipped .sweep{animation:zwRingFade 1.4s linear}
+.card.flipped .sweep::before{animation:zwRing 1.4s linear}
+@keyframes zwRingFade{
+  0%{opacity:0} 5%{opacity:1} 90%{opacity:1} 100%{opacity:0}
+}
+@keyframes zwRing{
+  0%  {transform:rotate(-90deg)}
+  5%  {transform:rotate(-84.14deg)}
+  10% {transform:rotate(-67.5deg)}
+  15% {transform:rotate(-48.75deg)}
+  20% {transform:rotate(-30deg)}
+  25% {transform:rotate(-11.25deg)}
+  30% {transform:rotate(7.5deg)}
+  35% {transform:rotate(26.25deg)}
+  40% {transform:rotate(45deg)}
+  45% {transform:rotate(63.75deg)}
+  50% {transform:rotate(82.5deg)}
+  55% {transform:rotate(101.25deg)}
+  60% {transform:rotate(120deg)}
+  65% {transform:rotate(138.75deg)}
+  70% {transform:rotate(157.5deg)}
+  75% {transform:rotate(176.25deg)}
+  80% {transform:rotate(195deg)}
+  85% {transform:rotate(213.75deg)}
+  90% {transform:rotate(232.5deg)}
+  95% {transform:rotate(251.25deg)}
+  100%{transform:rotate(270deg)}
+}
+
+/* 翻完之后：整圈品质光**常亮**（约 70%），不消失。
+   同样挂在 `.flipper` 上（跟着卡转，不在卡外面悬着）。
+   常态就存在、只是 opacity:0 —— 这样翻过来的时候是**淡入**，不是"啪"地出现一个整圈。 */
+.card .flipper::after{
   content:"";position:absolute;inset:-3px;border-radius:calc(var(--r-card) + 3px);
-  box-shadow:inset 0 0 0 1.5px var(--tier), 0 0 10px color-mix(in srgb,var(--tier) 60%,transparent);
-  opacity:.70;pointer-events:none;
-  transition:opacity .3s ease .55s;
+  box-shadow:inset 0 0 0 1.5px var(--tier),
+             0 0 6px color-mix(in srgb,var(--tier) 55%,transparent);
+  opacity:0;pointer-events:none;
+  transition:opacity .3s ease;
+}
+.card.flipped .flipper::after{opacity:.70;transition-delay:.95s}
+
+/* 卡外那圈淡光（App 侧 FlipCard.outerHalo）：
+   inset -4 + 描边 6 + blur 4 ≈ 卡外 9–10px 的柔光。
+   它画在卡面**下面**（DOM 里排第一），卡片自己的不透明底会把朝内那半盖住 ——
+   所以只在卡片轮廓外面露出来，卡里一点都不会被冲淡。 */
+.card .aura{
+  position:absolute;inset:-4px;border-radius:calc(var(--r-card) + 4px);
+  border:6px solid color-mix(in srgb,var(--tier) 55%,transparent);
+  filter:blur(4px);
+  opacity:0;pointer-events:none;
+}
+.card.flipped .aura{animation:zwAura 1.4s ease-out both}
+@keyframes zwAura{
+  0%,62%{opacity:0}
+  82% {opacity:.32}
+  100%{opacity:.45}
 }
 
 .back-art{position:absolute;inset:0;
@@ -881,6 +945,7 @@ function cardHTML(d, flipped){
   const tier = `var(${d.tier})`;
   return `
   <div class="card ${flipped?'flipped':''}" style="--tier:${tier}">
+   <div class="aura"></div>
    <div class="flipper">
     <div class="face back">
       <div class="back-art"></div>
@@ -902,6 +967,7 @@ function cardHTML(d, flipped){
         <div class="pr"><b class="mono">${d.price.toLocaleString('en-US').replace(/,/g,' ')}</b><span class="machine">VP</span></div>
       </div>
     </div>
+    <div class="sweep"></div>
    </div>
   </div>`;
 }

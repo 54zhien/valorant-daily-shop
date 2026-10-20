@@ -53,6 +53,12 @@ enum ZW {
     static let gap: CGFloat = 12
     static let gapLoose: CGFloat = 18
 
+    /// 2×2 卡阵的间距。**比常规块间距大**：翻牌时光会从卡边往外渗 10pt 左右
+    /// （`FlipCard.outerHalo`：外扩 4pt + 同量模糊），
+    /// 20pt 的间距让相邻两张各留 10pt —— 光刚好留在自己那块地方，串不到隔壁。
+    /// 想加粗外晕，先把这个数一起放大。
+    static let cardGap: CGFloat = 20
+
     /// 内容最大宽度：iPad 上别把 2×2 卡阵拉成两米宽
     static let boardMaxWidth: CGFloat = 520
 
@@ -75,7 +81,7 @@ enum ZW {
 
     /// 翻牌时长。
     /// 现在是一整段编排（光跑一圈 → 抬升 → 翻转 → 落下），不是单纯翻转，
-    /// 所以比原来长：0.9s。四张错开 130ms 连起来约 1.3s。
+    /// 所以比原来长：1.4s。四张错开 130ms 连起来约 1.8s。
     static let flip: Double = 1.4
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
@@ -92,8 +98,17 @@ enum ZW {
     static let flipLiftScale: CGFloat = 0.04
     /// 品质光的强度（扫过去那一下最亮）
     static let flipGlow: Double = 1.0
-    /// 翻过来之后，光**不消失**，留在这个透明度常亮（0.38 = 38%）
+    /// 翻过来之后，光**不消失**，留在这个透明度常亮（0.70 = 70%）
     static let flipGlowResting: Double = 0.70
+
+    /// 光头起步的加速段占行程的比例（之后全程匀速，收尾不减速）。
+    /// 越小越像"一开始就全速"；0 = 硬起，会有"光弹一下"的错觉。
+    static let flipFlowRamp: Double = 0.08
+
+    /// 卡外那圈淡光：往外扩多少 pt（外扩 4 + 模糊 8 ≈ 卡外 10pt 柔光）
+    static let flipHaloInset: CGFloat = 4
+    /// 卡外光晕常亮档的强度 —— 只是"透出来一点"，比卡内那圈（0.70）淡一半还多
+    static let flipHaloResting: Double = 0.45
 }
 
 // ============================================================================
@@ -192,6 +207,10 @@ struct ZWHatchTexture: Shape {
 /// 直线段和四段圆弧会被切得很碎 —— 表现就是光跑到拐角处像被切块。
 /// 这里自己按弧长均匀取点连折线，无论怎么切都是连续的一条。
 ///
+/// **零长度 = 不画**：`from == to` 时返回空路径。否则 stroke 的圆帽会在起点
+/// （上边中点）留下一个光点 —— 未翻开的卡顶上那颗就是这么来的。
+/// 验算台：probe/ring_probe.swift ⑦。
+///
 /// 参数化：从**上边中点**起，顺时针一圈（t = 0…1）。
 struct ZWRingSweep: Shape {
 
@@ -212,7 +231,14 @@ struct ZWRingSweep: Shape {
     nonisolated func path(in rect: CGRect) -> Path {
         let a = min(from, to)
         let b = max(from, to)
-        let span = max(b - a, 0.0001)
+        let span = b - a
+
+        // 退化（from == to，或者短到不足半点）：**什么都不画**。
+        // 起点在上边中点，如果给一条零长度折线，`lineCap: .round` 会在那儿
+        // 戳出一个圆帽 —— 没翻开的卡顶上那个光点就是它（不是"光效起点"该露出来的样子）。
+        // 阈值按**弧长**算而不是按 span 算：卡越小，同样的 span 越短。
+        let perimeter = 2 * (Double(rect.width) + Double(rect.height))
+        guard span > 0, span * perimeter >= 0.5 else { return Path() }
 
         // 采样密度：一整圈 240 段，短片段按比例，最少 6 段
         let count = max(6, Int(240 * min(span, 1)))

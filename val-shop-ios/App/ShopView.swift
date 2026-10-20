@@ -21,8 +21,8 @@ struct ShopView: View {
     @State private var showRolePicker = false
 
     private let columns = [
-        GridItem(.flexible(), spacing: ZW.gap),
-        GridItem(.flexible(), spacing: ZW.gap),
+        GridItem(.flexible(), spacing: ZW.cardGap),
+        GridItem(.flexible(), spacing: ZW.cardGap),
     ]
 
     var body: some View {
@@ -173,7 +173,8 @@ struct ShopView: View {
             fuse
                 .padding(.bottom, 12)
 
-            LazyVGrid(columns: columns, spacing: ZW.gap) {
+            // 卡阵间距用 cardGap（比常规块间距大）：翻牌的光要留在自己那块地方
+            LazyVGrid(columns: columns, spacing: ZW.cardGap) {
                 ForEach(Array(model.snapshot.items.prefix(4).enumerated()), id: \.offset) { index, item in
                     StoreCardView(item: item,
                                   slot: index + 1,
