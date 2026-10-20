@@ -558,21 +558,23 @@ struct QQWebView: UIViewRepresentable {
         /// 拿不到就什么都不做 —— 上层会继续显示"正在准备二维码…"。
         @discardableResult
         private func reportQRRect(from json: String) -> Bool {
+            // ⚠️ 分两段 guard：`guard let` 的 else 分支里读不到前面刚绑定的名字，
+            //    所以先单独把 JSON 解析出来（失效判定要先跑，位置拿不到也要判）。
             guard let data = json.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let r = obj["rect"] as? [String: Any],
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return false }
+
+            reportInvalid(obj)
+
+            guard let r = obj["rect"] as? [String: Any],
                   let x = (r["x"] as? NSNumber)?.doubleValue,
                   let y = (r["y"] as? NSNumber)?.doubleValue,
                   let w = (r["w"] as? NSNumber)?.doubleValue,
                   let h = (r["h"] as? NSNumber)?.doubleValue,
                   w > 20, h > 20
-            else {
-                // 位置没量到也先把"失效"判了：那时候页面通常只剩一个失效提示
-                reportInvalid(obj)
-                return false
-            }
+            else { return false }
+
             let scrollY = (obj["scrollY"] as? NSNumber)?.doubleValue ?? 0
-            reportInvalid(obj)
             onQRRect?(CGRect(x: x, y: y + scrollY, width: w, height: h))
             return true
         }
