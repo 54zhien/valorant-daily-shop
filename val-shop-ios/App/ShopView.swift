@@ -222,9 +222,11 @@ struct ShopView: View {
             .disabled(model.flipped.allSatisfy { $0 })
         }
         .padding(.horizontal, 2)
-        .padding(.top, 8)          // 这一行整体往下一点点
-        // 卡阵跟着往下：原来那条整宽引信的高度，用标题行的下边距补回来再多给一点（下沿留白也收掉了）
-        .padding(.bottom, 52)
+        // 这一行整体往下、靠卡阵近一些：上边距吃掉原来那段空白（8 → 30）。
+        // 下边距 32pt —— 翻牌时光晕外扩约 15pt、抬升再 11pt，合起来约 26pt，
+        // 留出一点余量，光不会糊到这一行上。
+        .padding(.top, 30)
+        .padding(.bottom, 32)
     }
 
     /// 倒计时走自己的一秒一拍 —— 只重绘这一小块
