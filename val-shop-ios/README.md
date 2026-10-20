@@ -48,7 +48,7 @@ val-shop-ios/
 │   ├─ DiagnosticsView.swift      ★ 诊断台（List，入口在「我的 → 关于 → 诊断」）
 │   ├─ EndpointsView.swift        抓包接口清单（诊断台里的子页）
 │   ├─ QRLoginView.swift          微信扫码（取景框 + 状态钻）
-│   ├─ QQLoginView.swift          QQ 扫码（WKWebView + 诊断面板）
+│   ├─ QQLoginView.swift          QQ 扫码（WKWebView 只露出二维码那一块 + 诊断面板）
 │   ├─ RolePickerView.swift       多角色切换
 │   ├─ Theme.swift                模型 → 视图的取值助手（品质色、价格千位、会话健康度）
 │   ├─ BundledConfig.plist        ★ CI 用它注入商店接口路径

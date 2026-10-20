@@ -29,53 +29,33 @@ struct QQLoginView: View {
     @State private var url: URL?
     @State private var reloadToken = UUID()
     /// 诊断信息（导航 + 页面探针）。二维码失效到底是服务端判的还是我们这边的问题，
-    /// 看这个就能分辨 —— 别再靠猜。
+    /// 看这个就能分辨 —— 别再靠猜。默认不显示，点「诊断」才出来。
     @State private var diag: [String] = []
-    @State private var copied = false
+    @State private var showDiag = false
+    /// 网页里二维码的位置（CSS px，相对视口）。量到之后就把整页裁成一张二维码 ——
+    /// 和微信登录那页长得一样：一张码 + 一行提示，没有网页的页头页脚。
+    @State private var qrRect: CGRect?
+
+    /// 二维码格子边长：和微信登录同一个数，两页看起来是一套
+    private static let qrSide: CGFloat = 224
+    /// 网页用**固定视口**加载 —— 换机型二维码落点也一样，量一次就够
+    private static let pageSize = CGSize(width: 390, height: 700)
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if let url {
-                    QQWebView(url: url,
-                              reloadToken: reloadToken,
-                              onCallback: { callback in
-                                  login.complete(with: callback)
-                              },
-                              onLoaded: {
-                                  if stage == .loading || stage == .idle {
-                                      login.markWaiting()
-                                  }
-                              },
-                              onFailed: { msg in
-                                  stage = .failed(msg)
-                              },
-                              onNavigate: { target, isMain in
-                                  // 换过一次 UA 之后，这里应该看到
-                                  // xui.ptlogin2.qq.com 是**主框架**。
-                                  // 如果它出现在子框架里，说明 iOS 分支还是走了 iframe。
-                                  // 打**完整 URL**，不只 host ——
-                                  // QQ 成功后会经过 s_url 之类的中转，只看 host 看不出走到了哪
-                                  diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.absoluteString.prefix(120))", at: 0)
-                                  if diag.count > 12 { diag.removeLast() }
-                              },
-                              onProbe: { info in
-                                  diag.insert("QR \(info)", at: 0)
-                                  if diag.count > 12 { diag.removeLast() }
-                              })
-                    .ignoresSafeArea(edges: .bottom)
-                } else {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                        Text("正在准备…")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                Spacer(minLength: 20)
+
+                qrCard
+
+                Text("请使用「QQ」扫一扫")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 14)
+
+                Spacer(minLength: 0)
 
                 statusBar
-                if !diag.isEmpty { diagPanel }
             }
             .navigationTitle("QQ 扫码登录")
             .navigationBarTitleDisplayMode(.inline)
@@ -94,6 +74,36 @@ struct QQLoginView: View {
                         Label("换一张码", systemImage: "arrow.clockwise")
                     }
                 }
+                if !diag.isEmpty {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("诊断") { showDiag = true }
+                            .font(.footnote)
+                    }
+                }
+            }
+            .sheet(isPresented: $showDiag) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .padding(ZW.pad)
+                    }
+                    .navigationTitle("QQ 扫码诊断")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("好") { showDiag = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
             }
         }
         .onAppear { wire() }
@@ -104,7 +114,7 @@ struct QQLoginView: View {
                 try? await Task.sleep(nanoseconds: 90_000_000_000)   // 90 秒
                 if Task.isCancelled { break }
                 if stage == .waiting || stage == .loading {
-                    diag.insert("⟳ 自动换码（90 秒到）", at: 0)
+                    diag.insert("\u{27F3} 自动换码（90 秒到）", at: 0)
                     reloadToken = UUID()
                     stage = .loading
                 } else {
@@ -114,38 +124,97 @@ struct QQLoginView: View {
         }
     }
 
-    // MARK: - 诊断
+    // MARK: - 二维码
 
-    /// 诊断文本（可复制，出问题时整段发过来）
-    private var diagLines: String {
-        (["QQ扫码诊断", "UA = Android（伪装）", "---"] + diag.reversed())
-            .joined(separator: "\n")
-    }
+    /// 一张白卡，里面只有二维码 —— 和微信登录那页同一套版式。
+    /// 做法：网页照旧在底下整张加载（它自己会画码、自己轮询），
+    /// 我们只把 WebView 按「二维码中心」偏移，再裁成 224×224。
+    private var qrCard: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
 
-    /// 诊断面板 —— 出问题时整块截图 / 复制发过来就够了。
-    /// 用可折叠的 DisclosureGroup（系统控件），默认收起，不抢二维码的位置。
-    private var diagPanel: some View {
-        DisclosureGroup {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
+            webLayer
+                .clipShape(RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous))
+
+            // 还没量到二维码位置（或者入口页都还没回来）
+            if qrRect == nil || url == nil {
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.large)
+                    Text("正在准备二维码…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.top, 6)
             }
-            .frame(maxHeight: 120)
-        } label: {
-            Text("诊断信息")
-                .font(.footnote)
         }
-        .padding(.horizontal, ZW.pad)
-        .padding(.bottom, 8)
+        .frame(width: Self.qrSide, height: Self.qrSide)
+        .contentShape(RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous))
+        .onTapGesture {
+            // 码失效了：点一下就换一张（和微信页一致）
+            if case .failed = stage {
+                reloadToken = UUID()
+                stage = .loading
+            }
+        }
     }
+
+    /// 把二维码放大到正好装满卡片：按**量到的**尺寸算，不猜页面的码有多大
+    private var webScale: CGFloat {
+        guard let r = qrRect, r.width > 1 else { return 1 }
+        return min(1.8, (Self.qrSide - 24) / r.width)
+    }
+
+    /// WebView 本身：固定视口大小 → 按二维码中心缩放/偏移 → 外面再套 224 的裁切框。
+    /// 量不到位置时透明，但**始终挂在视图树里** —— 否则一换布局 WebView 就被重建、页面重载。
+    private var webLayer: some View {
+        Group {
+            if let url {
+                QQWebView(url: url,
+                          reloadToken: reloadToken,
+                          onCallback: { callback in
+                              login.complete(with: callback)
+                          },
+                          onLoaded: {
+                              if stage == .loading || stage == .idle {
+                                  login.markWaiting()
+                              }
+                          },
+                          onFailed: { msg in
+                              stage = .failed(msg)
+                          },
+                          onNavigate: { target, isMain in
+                              diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.absoluteString.prefix(120))", at: 0)
+                              if diag.count > 12 { diag.removeLast() }
+                          },
+                          onProbe: { info in
+                              diag.insert("QR \(info)", at: 0)
+                              if diag.count > 12 { diag.removeLast() }
+                          },
+                          onQRRect: { rect in
+                              // 只在真的变了的时候写，避免每帧都触发重绘
+                              if qrRect != rect { withAnimation(.easeOut(duration: 0.2)) { qrRect = rect } }
+                          })
+                .frame(width: Self.pageSize.width, height: Self.pageSize.height)
+                .scaleEffect(webScale, anchor: .topLeading)
+                .offset(x: offset.x, y: offset.y)
+            }
+        }
+        .opacity(qrRect == nil ? 0 : 1)
+        .frame(width: Self.qrSide, height: Self.qrSide, alignment: .topLeading)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    /// 让二维码中心落在卡片中心
+    private var offset: CGPoint {
+        guard let r = qrRect else { return .zero }
+        let s = webScale
+        return CGPoint(x: Self.qrSide / 2 - r.midX * s,
+                       y: Self.qrSide / 2 - r.midY * s)
+    }
+
+    // MARK: - 状态
 
     private var statusBar: some View {
         HStack(spacing: 10) {
@@ -206,6 +275,7 @@ struct QQLoginView: View {
     private func prepare() async {
         diag.removeAll()
         url = nil
+        qrRect = nil
         stage = .loading
         let ts = QQLogin.nowTimestamp()
         diag.insert("① 请求入口页（time=\(ts)，签名本地算）", at: 0)
@@ -227,7 +297,6 @@ struct QQLoginView: View {
         Task { await prepare() }
     }
 }
-
 // MARK: - WKWebView 包装
 
 /// 只做两件事：加载 URL，拦截 auth:// 回调。
@@ -287,6 +356,7 @@ struct QQWebView: UIViewRepresentable {
     let url: URL
     /// 变了就重新加载（点"刷新"时）
     let reloadToken: UUID
+
     let onCallback: (URL) -> Void
     let onLoaded: () -> Void
     let onFailed: (String) -> Void
@@ -294,10 +364,13 @@ struct QQWebView: UIViewRepresentable {
     var onNavigate: ((URL, Bool) -> Void)?
     /// 页面加载完注入 JS 探到的信息
     var onProbe: ((String) -> Void)?
+    /// 页面里二维码的位置（CSS px，相对视口）—— 上层据此把整页裁成一张二维码
+    var onQRRect: ((CGRect) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onCallback: onCallback, onLoaded: onLoaded,
-                    onFailed: onFailed, onNavigate: onNavigate, onProbe: onProbe)
+                    onFailed: onFailed, onNavigate: onNavigate, onProbe: onProbe,
+                    onQRRect: onQRRect)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -323,6 +396,10 @@ struct QQWebView: UIViewRepresentable {
         web.scrollView.bounces = false
         web.customUserAgent = QQLogin.androidUA
 
+        // 位置是量出来的，页面自己别滚（滚了 rect 就对不上）
+        web.scrollView.isScrollEnabled = false
+        web.scrollView.bounces = false
+
         context.coordinator.web = web
         context.coordinator.load(url, token: reloadToken)
         return web
@@ -336,6 +413,7 @@ struct QQWebView: UIViewRepresentable {
         //   而 load() 里把 lastToken 设成了 nil，于是条件**永远为真**：
         //   每次重渲染都重载页面，导航回调又写诊断、诊断又触发重渲染……
         //   死循环，表现就是二维码疯狂闪烁扫不了。
+
         if context.coordinator.gate.shouldReload(token: reloadToken) {
             context.coordinator.load(url, token: reloadToken)
         }
@@ -347,20 +425,25 @@ struct QQWebView: UIViewRepresentable {
         private let onFailed: (String) -> Void
         let onNavigate: ((URL, Bool) -> Void)?
         let onProbe: ((String) -> Void)?
+        let onQRRect: ((CGRect) -> Void)?
 
         weak var web: WKWebView?
         var gate = ReloadGate()
+        /// 探针重试次数（二维码晚一点才出现时用）
+        var probeTries = 0
 
         init(onCallback: @escaping (URL) -> Void,
              onLoaded: @escaping () -> Void,
              onFailed: @escaping (String) -> Void,
              onNavigate: ((URL, Bool) -> Void)?,
-             onProbe: ((String) -> Void)?) {
+             onProbe: ((String) -> Void)?,
+             onQRRect: ((CGRect) -> Void)?) {
             self.onCallback = onCallback
             self.onLoaded = onLoaded
             self.onFailed = onFailed
             self.onNavigate = onNavigate
             self.onProbe = onProbe
+            self.onQRRect = onQRRect
         }
 
         // MARK: 回调捕获（三层保险）
@@ -404,6 +487,7 @@ struct QQWebView: UIViewRepresentable {
         }
 
         func load(_ url: URL, token: UUID) {
+            probeTries = 0
             // 记下当前 token。不记的话下次 updateUIView 会再加载一次，
             // 然后导航回调写诊断、诊断触发重渲染、又加载 —— 死循环，二维码狂闪。
             _ = gate.shouldReload(token: token)
@@ -432,6 +516,7 @@ struct QQWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             onLoaded()
+            probeTries = 0
             probePage(webView)
         }
 
@@ -449,11 +534,15 @@ struct QQWebView: UIViewRepresentable {
                 var img = document.getElementById('qrimg');
                 var tips = document.getElementById('qrtips');
                 var inv = document.getElementById('qr_invalid');
+                var r = img ? img.getBoundingClientRect() : null;
                 return JSON.stringify({
                   url: location.href,
                   hasImg: !!img,
                   imgSrc: img ? (img.src || '').slice(0, 200) : '',
                   imgW: img ? img.naturalWidth : 0,
+                  // 二维码在页面里的位置（CSS px，相对视口）
+                  rect: r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null,
+                  scrollY: window.scrollY || 0,
                   tips: tips ? tips.innerText.replace(/\\n/g, ' ') : '',
                   invalidShown: inv ? (getComputedStyle(inv).display !== 'none') : null,
                   ua: navigator.userAgent.slice(0, 80),
@@ -464,11 +553,39 @@ struct QQWebView: UIViewRepresentable {
             """
             webView.evaluateJavaScript(js) { value, error in
                 if let s = value as? String {
-                    self.onProbe?(s)
+                    // 二维码有时是页面加载完之后才由脚本塞进来的：
+                    // 没量到就隔 0.7 秒再量一次（有上限，不会一直轮询）
+                    if !self.reportQRRect(from: s), self.probeTries < 12 {
+                        self.probeTries += 1
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak webView] in
+                            guard let webView else { return }
+                            self.probePage(webView)
+                        }
+                    } else {
+                        self.onProbe?(s)
+                    }
                 } else if let e = error {
                     self.onProbe?("probe 失败: \(e.localizedDescription)")
                 }
             }
+        }
+
+        /// 从探针的 JSON 里抠出二维码矩形，交给上层做裁剪。
+        /// 拿不到就什么都不做 —— 上层会继续显示"正在准备二维码…"。
+        @discardableResult
+        private func reportQRRect(from json: String) -> Bool {
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let r = obj["rect"] as? [String: Any],
+                  let x = (r["x"] as? NSNumber)?.doubleValue,
+                  let y = (r["y"] as? NSNumber)?.doubleValue,
+                  let w = (r["w"] as? NSNumber)?.doubleValue,
+                  let h = (r["h"] as? NSNumber)?.doubleValue,
+                  w > 20, h > 20
+            else { return false }
+            let scrollY = (obj["scrollY"] as? NSNumber)?.doubleValue ?? 0
+            onQRRect?(CGRect(x: x, y: y + scrollY, width: w, height: h))
+            return true
         }
 
         func webView(_ webView: WKWebView,
