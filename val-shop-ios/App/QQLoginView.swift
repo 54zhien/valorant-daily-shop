@@ -32,8 +32,10 @@ struct QQLoginView: View {
     /// 网页里二维码的位置（CSS px，相对视口）。量到之后就把整页裁成一张二维码 ——
     /// 和微信登录那页长得一样：一张码 + 一行提示，没有网页的页头页脚。
     @State private var qrRect: CGRect?
-    /// 看门狗重载次数（页面卡住时自救，最多两次）
+    /// 看门狗重载次数（页面卡住时自救，最多一次）
     @State private var watchdogReloads = 0
+    /// 网页是否已经加载完（didFinish）。没加载完的重载只会让它更慢。
+    @State private var pageLoaded = false
     /// 上一次「页面报码失效」的时间，用来防抖
     @State private var invalidStamp = Date.distantPast
 
@@ -92,12 +94,13 @@ struct QQLoginView: View {
                 stage = .loading
             }
         }
-        // 看门狗：8 秒还没量到二维码（页面卡住 / 二维码压根没出来）就重载一次，
-        // 最多两次。不然用户只会盯着「正在准备二维码…」发呆。
+        // 看门狗：**页面自己都没加载完时不要碰它** —— 那是网络慢，
+        // 重载只会让整条链从头再来一遍，看起来更慢（上一版就是 8 秒硬重载，反而添乱）。
+        // 只有"页面明明加载完了、却没有二维码"才重载，而且最多一次。
         .task(id: reloadToken) {
-            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
             guard !Task.isCancelled else { return }
-            if qrRect == nil, url != nil, watchdogReloads < 2 {
+            if pageLoaded, qrRect == nil, watchdogReloads < 1 {
                 watchdogReloads += 1
                 reloadToken = UUID()
             }
@@ -156,6 +159,7 @@ struct QQLoginView: View {
                               login.complete(with: callback)
                           },
                           onLoaded: {
+                              pageLoaded = true
                               if stage == .loading || stage == .idle {
                                   login.markWaiting()
                               }
@@ -256,10 +260,13 @@ struct QQLoginView: View {
     private func prepare(attempt: Int = 0) async {
         url = nil
         qrRect = nil
+        pageLoaded = false
         watchdogReloads = 0
         stage = .loading
         do {
-            let entry = try await login.fetchEntryURL(time: QQLogin.nowTimestamp())
+            // 有预取就用预取的（「我的」页出现时已经在后台抓好了），
+            // 所以这里通常是 0 等待，WebView 立刻开始加载。
+            let entry = try await login.entryURL(forceRefresh: attempt > 0)
             url = entry
         } catch {
             // 抓入口页失败多半是网络抖了一下：自动再试一次，

@@ -160,6 +160,12 @@ struct QRLoginView: View {
         login.onStageChange = { s in
             withAnimation(.snappy) { stage = s }
         }
+        // 码一到就显示。以前是「每 50ms 轮询 login.image，最多 100 次」——
+        // 等于给取码设了 5 秒上限：网慢一点（或者重试了一次）码就算回来了也不显示，
+        // 用户看到的就是一直转圈。这是这次"加载很久"的主因之一。
+        login.onImage = { qr in
+            withAnimation(.snappy) { image = qr }
+        }
         login.onSession = { session in
             model.adopt(session)
             // 停一下让用户看到"成功"，再自动关掉
@@ -172,14 +178,7 @@ struct QRLoginView: View {
     }
 
     private func restart() {
-        image = nil
+        // 不先清空：新码回来之前先留着旧的那张，避免闪一下白
         login.start()
-        // 二维码是异步回来的，轮询一下 image
-        Task {
-            for _ in 0..<100 {
-                if let img = login.image { withAnimation(.snappy) { image = img }; return }
-                try? await Task.sleep(nanoseconds: 50_000_000)
-            }
-        }
     }
 }

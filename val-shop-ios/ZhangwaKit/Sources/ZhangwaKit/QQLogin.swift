@@ -168,10 +168,39 @@ public final class QQLogin {
     ///
     /// 我们把「抠 URL」和「导航」都自己做，就永远是**顶层导航**，
     /// 根本不给它走 iframe 的机会。也不依赖 UA 伪装（那个依然留着当双保险）。
+    /// 单次请求超时
+    static let stepTimeout: TimeInterval = 10
+    /// 预取到的登录页地址（URL 里带 time，2 分钟内复用没问题）
+    static let entryTTL: TimeInterval = 120
+    private static var cachedEntry: (url: URL, at: Date)?
+
+    /// 提前把登录页地址抠好 —— 在「我的」页出现时调一次。
+    /// 用户点「QQ 扫码登录」时，WebView 可以直接开始加载，省掉一整趟往返。
+    public static func preloadEntry() async {
+        if let c = cachedEntry, Date().timeIntervalSince(c.at) < entryTTL { return }
+        let probe = QQLogin()
+        if let url = try? await probe.fetchEntryURL(time: nowTimestamp()) {
+            cachedEntry = (url, Date())
+        }
+    }
+
+    /// 取登录页地址：有预取就用预取的（`forceRefresh` 时重新抓）。
+    public func entryURL(forceRefresh: Bool = false) async throws -> URL {
+        if !forceRefresh, let c = Self.cachedEntry, Date().timeIntervalSince(c.at) < Self.entryTTL {
+            Self.cachedEntry = nil
+            return c.url
+        }
+        let url = try await fetchEntryURL(time: Self.nowTimestamp())
+        Self.cachedEntry = (url, Date())
+        return url
+    }
+
     public func fetchEntryURL(time: String) async throws -> URL {
         var req = URLRequest(url: authorizeURL(time: time))
         req.setValue(Self.androidUA, forHTTPHeaderField: "User-Agent")
-        let (data, http) = try await transport(req, 25)
+        // 10 秒够了（实测入口页 ~200ms / 10KB）。原来是 25 秒 ——
+        // 连接坏了用户就得干等 25 秒，而重试会换新连接，早点放弃反而更快。
+        let (data, http) = try await transport(req, Self.stepTimeout)
         guard (200..<300).contains(http.statusCode) else {
             throw ZhangwaError.transport("入口页 HTTP \(http.statusCode)")
         }

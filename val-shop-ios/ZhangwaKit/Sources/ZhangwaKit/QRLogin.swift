@@ -65,6 +65,29 @@ public final class QRLogin {
     /// 轮询一次最多挂多久。服务端自己会在 15-30 秒左右返回。
     static let pollTimeout: TimeInterval = 40
 
+    /// 取票 / 取码单次超时。原来是 25 秒 —— 网络不通时用户就干等 25 秒，
+    /// 现在 10 秒就放弃并立刻重试（重试会换一条新连接，很多"卡住"其实是坏连接）。
+    static let stepTimeout: TimeInterval = 10
+
+    /// 预取的码能用多久（二维码本身有效期约 5 分钟，2 分钟内复用没有风险）
+    static let preloadTTL: TimeInterval = 120
+
+    /// 预取到、还没人用的二维码
+    private static var preloaded: (image: QRImage, at: Date)?
+
+    /// 提前把二维码取好 —— 在「我的」页出现时调一次。
+    /// 这样用户点「微信扫码登录」时，码已经是现成的了。
+    public static func preload() async {
+        if let p = preloaded, Date().timeIntervalSince(p.at) < preloadTTL { return }
+        let probe = QRLogin()
+        do {
+            let qr = try await probe.prepareQRCode()
+            preloaded = (qr, Date())
+        } catch {
+            // 预取失败没关系：用户点开时还会重试
+        }
+    }
+
     // MARK: 状态
 
     public enum Stage: Equatable, Sendable {
@@ -122,6 +145,9 @@ public final class QRLogin {
 
     /// 状态变化回调（UI 订阅用）
     public var onStageChange: (@MainActor (Stage) -> Void)?
+    /// 二维码到手就立刻回调 —— 视图不用再自己轮询 `image` 了。
+    /// （以前那套「每 50ms 轮询、最多 100 次」= 5 秒上限：网慢一点码回来了界面也不显示。）
+    public var onImage: (@MainActor (QRImage) -> Void)?
     /// 成功拿到登录态
     public var onSession: (@MainActor (ZhangwaSession) -> Void)?
 
@@ -185,6 +211,7 @@ public final class QRLogin {
             //    现在自动重试 3 次（0.6s、1.2s 退避），绝大多数抖动都能自己过去。
             let qr = try await prepareQRCode()
             image = qr
+            onImage?(qr)
             setStage(.waiting)
             log("③ 拿到二维码 uuid=\(qr.uuid)，图片 \(qr.data.count) 字节")
 
@@ -217,7 +244,15 @@ public final class QRLogin {
     }
 
     /// ① ticket → ② 签名 → ③ 申请二维码，带重试。
-    private func prepareQRCode(attempts: Int = 3) async throws -> QRImage {
+    ///
+    /// 有预取好的码就直接用（`preload()` 在「我的」页出现时就跑过了），
+    /// 用户点开扫码页看到的是一张现成的码，0 等待。
+    private func prepareQRCode(attempts: Int = 2) async throws -> QRImage {
+        if let p = Self.preloaded, Date().timeIntervalSince(p.at) < Self.preloadTTL {
+            Self.preloaded = nil
+            log("⚡️ 用预取的二维码（\(Int(Date().timeIntervalSince(p.at))) 秒前取的）")
+            return p.image
+        }
         var lastError: Error?
         for attempt in 0..<attempts {
             try Task.checkCancellation()
@@ -255,7 +290,7 @@ public final class QRLogin {
         req.setValue(Self.anonymousCookie, forHTTPHeaderField: "Cookie")
         req.setValue("okhttp/4.9.2", forHTTPHeaderField: "User-Agent")
 
-        let (data, http) = try await transport(req, 25)
+        let (data, http) = try await transport(req, Self.stepTimeout)
         let json = try Self.decode(data, http)
         let code = ZhangwaClient.intValue(json["result"]) ?? -1
         guard code == 0 else {
@@ -293,7 +328,7 @@ public final class QRLogin {
                      forHTTPHeaderField: "User-Agent")
         req.setValue("https://open.weixin.qq.com/", forHTTPHeaderField: "Referer")
 
-        let (data, _) = try await transport(req, 25)
+        let (data, _) = try await transport(req, Self.stepTimeout)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ZhangwaError.transport("二维码响应不是 JSON")
         }
@@ -394,7 +429,7 @@ public final class QRLogin {
         req.setValue(Self.anonymousCookie, forHTTPHeaderField: "Cookie")
         req.setValue("okhttp/4.9.2", forHTTPHeaderField: "User-Agent")
 
-        let (data, http) = try await transport(req, 25)
+        let (data, http) = try await transport(req, Self.stepTimeout)
         let json = try Self.decode(data, http)
         let result = ZhangwaClient.intValue(json["result"]) ?? -1
         guard result == 0 else {

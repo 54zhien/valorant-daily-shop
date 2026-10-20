@@ -90,6 +90,15 @@ struct ProfileView: View {
                 Button("取消", role: .cancel) {}
             }
         }
+        // 提前把两种登录的"二维码材料"取好，用户点开扫码页时就不用等网络：
+        //   · 微信：ticket + 二维码（两趟往返，实测约 0.5 秒，但手机网络上可能好几秒）
+        //   · QQ：登录页地址（WebView 拿到就能立刻开始加载）
+        // 缓存 2 分钟，重复进这一页不会重复请求。
+        .task {
+            async let wx: Void = QRLogin.preload()
+            async let qq: Void = QQLogin.preloadEntry()
+            _ = await (wx, qq)
+        }
     }
 
     // MARK: - 账号
