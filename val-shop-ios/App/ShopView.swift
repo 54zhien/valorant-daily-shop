@@ -192,7 +192,7 @@ struct ShopView: View {
     private var lineUpHeader: some View {
         HStack(spacing: 8) {
             Text("下次刷新时间")
-                .font(.caption)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize()
 
@@ -214,16 +214,18 @@ struct ShopView: View {
                 flipAll()
             } label: {
                 Text("翻开全部")
-                    .font(.footnote)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .fixedSize()          // 别让这一行被挤成两行
             }
             .buttonStyle(.glass)
-            .controlSize(.small)
+            .controlSize(.regular)
             .disabled(model.flipped.allSatisfy { $0 })
         }
         .padding(.horizontal, 2)
-        // 卡阵整体往下挪一点：原来这里下面还有一整条引信，现在引信挪进这一行了，
-        // 下边距补回那条的高度再多给一点
-        .padding(.bottom, 30)
+        .padding(.top, 8)          // 这一行整体往下一点点
+        // 卡阵跟着往下：原来那条整宽引信的高度，用标题行的下边距补回来再多给一点（下沿留白也收掉了）
+        .padding(.bottom, 52)
     }
 
     /// 倒计时走自己的一秒一拍 —— 只重绘这一小块
@@ -249,15 +251,15 @@ struct ShopView: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color(.quaternaryLabel))
-                        .frame(height: 2)
+                        .frame(height: 3)
 
                     Capsule()
                         .fill(Color.zwRouge)
-                        .frame(width: max(0, w * ratio), height: 2)
+                        .frame(width: max(0, w * ratio), height: 3)
                 }
-                .frame(height: 4, alignment: .center)
+                .frame(height: 5, alignment: .center)
             }
-            .frame(height: 4)
+            .frame(height: 5)
             .accessibilityElement()
             .accessibilityLabel("距离下次刷新的进度")
             .accessibilityValue("\(Int(ratio * 100))%")

@@ -335,7 +335,7 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 | 品质五档 | `Rarity.colorHex` —— 服务端数据（掌瓦 `ic_val_goods_quality_1..5`），**不可改** |
 | 字号 | Dynamic Type 文本样式，见上表 |
 | 两处腔调 | 机器腔 `.system(style).weight(.heavy).width(.compressed)`（**只排拉丁小标**）；数据腔 `.system(style, design: .monospaced)` |
-| 几何 | 分组 16 / 卡片 20 / 小控件 11 / 发丝线 1 / 页边 16 / 块间距 12 / **卡阵间距 20**（`cardGap`，留地方给翻牌的外晕） |
+| 几何 | 分组 16 / 卡片 24 / 玻璃条 26 / 小控件 11 / 发丝线 1 / 页边 16 / 块间距 12 / **卡阵间距 20**（`cardGap`）/ 引信条宽 80（`fuseWidth`） |
 | 自绘形状 | `ZWDiamond`、`ZWHatchTexture` —— 附几何验算台 |
 
 ### 冷启动与图片缓存

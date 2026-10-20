@@ -41,14 +41,14 @@ enum ZW {
     /// 卡片 / 分组容器圆角
     static let radiusGroup: CGFloat = 16
     /// 卡片圆角
-    static let radiusCard: CGFloat = 20
+    static let radiusCard: CGFloat = 24
     /// 小控件（头像 / 图标）
     static let radiusControl: CGFloat = 11
     /// 玻璃信息条（身份条）—— 玻璃块要更"圆"一点，这是 Liquid Glass 的观感
     static let radiusGlass: CGFloat = 26
 
     /// 引信条（下次刷新进度）：缩短后塞进标题行里，只占这么宽
-    static let fuseWidth: CGFloat = 72
+    static let fuseWidth: CGFloat = 80
 
     /// 发丝线
     static let hairline: CGFloat = 1

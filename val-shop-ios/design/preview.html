@@ -49,7 +49,7 @@
 
   /* ---- 圆角：分组容器 12 / 卡片 20 / 小控件 11 ---- */
   --r-group:12px;
-  --r-card:20px;
+  --r-card:24px;
   --r-control:11px;
   --r-glass:26px;
   --pad:16px;
@@ -187,22 +187,22 @@ body{
    ② 今日四张（分组内容：小标 + 引信条 + 卡阵 + 统计）
    ========================================================================== */
 .board{margin-top:8px}
-.board .head{display:flex;align-items:center;gap:8px;padding:0 2px 30px}
-.board .head .t{font-size:12px;color:var(--label-2);white-space:nowrap}
-.board .head .c{font-size:12px;color:var(--label-2)}
+.board .head{display:flex;align-items:center;gap:8px;padding:8px 2px 52px}
+.board .head .t{font-size:13.5px;color:var(--label-2);white-space:nowrap}
+.board .head .c{font-size:13.5px;color:var(--label-2)}
 .board .head .row{display:flex;align-items:center;gap:10px;margin-left:auto}
 
 /* 控件层的次级按钮：系统 .glass 样式 */
 .board .head .act{
-  margin-left:auto;
-  font-size:12px;color:var(--label);cursor:pointer;padding:6px 12px;border-radius:999px;
+  margin-left:auto;flex:0 0 auto;white-space:nowrap;
+  font-size:13.5px;color:var(--label);cursor:pointer;padding:8px 13px;border-radius:999px;
   background:rgba(120,120,128,.28);border:1px solid rgba(255,255,255,.10);
 }
 .board .head .act:disabled{opacity:.45}
 
 /* 引信条 */
-.fuse{position:relative;flex:0 0 72px;height:2px;border-radius:2px;background:var(--fill)}
-.fuse .fill{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--rouge);transition:width .6s linear}
+.fuse{position:relative;flex:0 0 80px;height:3px;border-radius:3px;background:var(--fill)}
+.fuse .fill{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--rouge);transition:width .6s linear}
 
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);perspective:1100px}
 
