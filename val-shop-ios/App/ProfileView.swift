@@ -24,15 +24,16 @@ struct ProfileView: View {
                 accountSection
 
                 Section {
-                    Button {
-                        model.loginSheet = .wechat
-                    } label: {
-                        Label("微信扫码登录", systemImage: "qrcode")
-                    }
+                    // QQ 在前、微信在后（和登录面板一致）
                     Button {
                         model.loginSheet = .qq
                     } label: {
                         Label("QQ 扫码登录", systemImage: "qrcode")
+                    }
+                    Button {
+                        model.loginSheet = .wechat
+                    } label: {
+                        Label("微信扫码登录", systemImage: "qrcode")
                     }
                 } header: {
                     Text("登录")
@@ -74,6 +75,8 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("我的")
+            // 和商店页同一层滚动边缘模糊（顶部 + 底部）—— 两页的顶栏/底栏观感要一致
+            .zwScrollEdge(.all)
             .sheet(isPresented: $showRolePicker) {
                 RolePickerView().environment(model)
             }
@@ -97,10 +100,17 @@ struct ProfileView: View {
                 avatar
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(model.displayName)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    // 这里不再重复游戏 ID（商店页已经有了），改成说"怎么登进来的"。
+                    // 原来「已登录」前面那个菱形挪到这句前面。
+                    HStack(spacing: 6) {
+                        ZWDiamond()
+                            .fill(model.sessionHealth.tint)
+                            .frame(width: 8, height: 8)
+                        Text(model.loginMethodLabel)
+                            .font(.headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                     Text(model.displaySubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -108,15 +118,6 @@ struct ProfileView: View {
                 }
 
                 Spacer(minLength: 0)
-
-                HStack(spacing: 6) {
-                    ZWDiamond()
-                        .fill(model.sessionHealth.tint)
-                        .frame(width: 8, height: 8)
-                    Text(model.sessionHealth.text)
-                        .font(.subheadline)
-                        .foregroundStyle(model.sessionHealth.tint)
-                }
             }
             .padding(.vertical, 6)
             .accessibilityElement(children: .combine)

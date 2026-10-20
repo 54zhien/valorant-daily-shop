@@ -329,6 +329,13 @@ final class AppModel {
         UserDefaults.standard.removeObject(forKey: Self.selectedRoleKey)
     }
 
+    /// 「我的」页顶部那句：说明这次是用什么登进来的。
+    /// 不再重复游戏 ID —— 那个商店页已经显示了。
+    var loginMethodLabel: String {
+        guard hasSession else { return "未登录" }
+        return "已使用 \(session.authType.displayName) 登录"
+    }
+
     var accountLabel: String {
         guard session.isValid else { return "未登录" }
         let id = session.userID.isEmpty ? "?" : session.userID

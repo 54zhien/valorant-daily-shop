@@ -225,8 +225,8 @@ struct ShopView: View {
         // 这一行整体往下、靠卡阵近一些：上边距吃掉原来那段空白（8 → 30）。
         // 下边距 32pt —— 翻牌时光晕外扩约 15pt、抬升再 11pt，合起来约 26pt，
         // 留出一点余量，光不会糊到这一行上。
-        .padding(.top, 30)
-        .padding(.bottom, 32)
+        .padding(.top, 40)
+        .padding(.bottom, 26)
     }
 
     /// 倒计时走自己的一秒一拍 —— 只重绘这一小块

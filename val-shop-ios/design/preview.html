@@ -181,13 +181,16 @@ body{
 .status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--signal);flex:0 0 auto}
 .status .dot{width:7px;height:7px;transform:rotate(45deg);border-radius:2px;background:currentColor}
 .status .dot.off{background:var(--label-2)}
+/* 复用菱形标记：不在 .status 里的时候（比如「我的」页那句"已使用 微信 登录"前面） */
+.dm{display:inline-block;width:7px;height:7px;transform:rotate(45deg);border-radius:2px;
+    background:var(--signal);vertical-align:1px;margin-right:6px}
 .status.warn{color:var(--rouge)}
 
 /* ==========================================================================
    ② 今日四张（分组内容：小标 + 引信条 + 卡阵 + 统计）
    ========================================================================== */
 .board{margin-top:8px}
-.board .head{display:flex;align-items:center;gap:8px;padding:30px 2px 32px}
+.board .head{display:flex;align-items:center;gap:8px;padding:40px 2px 26px}
 .board .head .t{font-size:13.5px;color:var(--label-2);white-space:nowrap}
 .board .head .c{font-size:13.5px;color:var(--label-2)}
 .board .head .row{display:flex;align-items:center;gap:10px;margin-left:auto}
@@ -814,17 +817,17 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
             <div class="account g-lg g-fill">
               <div class="acct-av">天</div>
               <div class="acct-who">
-                <div class="gid">天天开心#26170</div>
+                <!-- 不再重复游戏 ID：改成说明"怎么登进来的"，菱形挪到这句前面 -->
+                <div class="gid"><span class="dm"></span>已使用 微信 登录</div>
                 <div class="sub">钻石 III · Lv183</div>
               </div>
-              <div class="status"><span class="dot ok"></span>已登录</div>
             </div>
 
             <div class="group">
               <div class="gh machine">Login · 登录</div>
               <div class="rows g-sm g-fill">
-                <div class="row tap"><span class="ic-qr">▣</span><span style="flex:1">微信扫码登录</span><span class="chev">›</span></div>
                 <div class="row tap"><span class="ic-qr">▣</span><span style="flex:1">QQ 扫码登录</span><span class="chev">›</span></div>
+                <div class="row tap"><span class="ic-qr">▣</span><span style="flex:1">微信扫码登录</span><span class="chev">›</span></div>
               </div>
             </div>
 
