@@ -6,17 +6,18 @@ import SwiftUI
 //
 //  点击之后按顺序发生这些事（不是同时）：
 //
-//     p 0.00 ─ 0.06   品质光起头（很快亮起来，但不硬切）
-//     p 0.02 ─ 1.00   **品质光沿卡牌边缘跑满一圈** —— 起步一小段加速，之后全程
-//                     匀速，收尾不减速。旧版窗口只到 0.45 就用 smoothstep 刹死，
-//                     整整后半段光一动不动，看着就是"最后四分之一在滞留"。
-//     p 0.02 ─ 0.45   卡牌向顶部抬升，底部阴影拉开、变散
-//     p 0.45 ─ 0.95   翻转（抬着翻），末尾 3.2° 过冲再回正
-//     p 0.70          换面（正好是翻转行程的中点 → 卡片侧对镜头，看不见）
-//     p 0.85 ─ 1.00   落下，阴影收拢
-//     p 0.90 ─ 1.00   整圈光从"扫过的亮度"收到 `flipGlowResting` 常亮
+//     p 0.00 ─ 0.05   品质光起头（很快亮起来，但不硬切）
+//     p 0.02 ─ 0.46   **品质光沿卡牌边缘跑满一圈** —— 起步一小段加速，之后全程
+//                     匀速，走到 0.46 正好合拢。**同一时刻卡牌抬到最高**（同一个窗口）。
+//     p 0.46 ─ 0.50   定格一拍（约 56ms）：一圈光刚合拢、卡停在最高点
+//     p 0.50 ─ 0.92   翻转（抬着翻），末尾 3.2° 过冲再回正
+//     p 0.71          换面（翻转行程的中点 → 卡片侧对镜头，看不见）
+//     p 0.92 ─ 1.00   落下，阴影收拢，整圈光收在 `flipGlowResting` 常亮
 //     p 0.62 ─ 1.00   **卡外那圈淡光**从卡边渗出来（`outerHalo`）——
 //                     翻过来之后卡内卡外都有光，卡内亮、卡外淡
+//
+//  顺序上的硬规矩：**光环必须走完一圈，卡才翻**。光还在跑就翻，两件事会撞在一起
+//  （最早那版就是这个毛病）。三个窗口的先后关系由 probe/flow_probe.swift 的「时序」段守着。
 //
 //  实现上仍然只有一个 `progress: 0→1`，上面每个效果都是它的一段窗口函数
 //  （`window(p, from:to:)`）。这样就永远不会有"谁先谁后对不齐"的问题 ——
@@ -108,29 +109,35 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
         return v * (x - e / 2)                    // 之后一路匀速到底
     }
 
-    /// 品质光扫完整圈的进度：0.02 → 1.00 —— **走满整段动画**，一直在流
-    private var ringProgress: Double { flow(window(0.02, 1.0)) }
+    /// 品质光扫完整圈的进度：0.02 → 0.46。
+    ///
+    /// **扫满一圈的那一刻，正好是卡牌抬到最高的那一刻**（lift 用的是同一个窗口），
+    /// 之后才停一拍、再翻。这就是"光环走完 → 卡抬起 → 翻过来"的先后顺序 ——
+    /// 光还在跑就翻的话，看上去就是两件事撞在一起。
+    private var ringProgress: Double { flow(window(0.02, 0.46)) }
 
     /// 抬升量。
-    /// 和光起跑同一个窗口（0.02→0.45）—— 光绕到一半时卡抬到最高。
+    /// 和扫圈**同一个窗口**（0.02→0.46）：光走完一圈的同一刻，卡抬到最高。
     private var lift: Double {
         guard !reduceMotion else { return 0 }
-        let up = smoothstep(window(0.02, 0.45))
-        let down = window(0.85, 1.0)
+        let up = smoothstep(window(0.02, 0.46))
+        let down = window(0.92, 1.0)
         return up * (1 - down)
     }
 
-    /// 翻转角度：0.45→0.95（抬到最高之后才翻），最后 25% 加 3.2° 过冲
+    /// 翻转角度：0.50→0.92 —— 光扫完、抬到最高、定格一拍（0.46→0.50）之后才翻，
+    /// 末尾 25% 加 3.2° 过冲再回正
     private var rotationAngle: Double {
         guard !reduceMotion else { return 0 }
-        let t = window(0.45, 0.95)
+        let t = window(0.50, 0.92)
         let tail = min(max((t - 0.75) / 0.25, 0), 1)
         return t * 180 + 3.2 * sin(.pi * tail)
     }
 
-    /// 划过的那道"光头"：光扫完就收掉（留下的整圈不消失）
+    /// 划过的那道"光头"：**一圈合拢时就淡出**（0.40→0.47），
+    /// 免得扫完之后还留一颗亮头挂在卡上 —— 那看着才像"光卡住了"
     private var cometOpacity: Double {
-        reduceMotion ? 0 : 1 - window(0.93, 1.0)
+        reduceMotion ? 0 : 1 - window(0.39, 0.46)
     }
 
     /// 整圈光的亮度。
@@ -143,8 +150,8 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
             // 减弱动态效果：不跑圈，只做整体淡入 → 停在常亮档
             return ZW.flipGlowResting * smoothstep(window(0.10, 0.55))
         }
-        let rise = window(0.00, 0.06)         // 起头就亮起来
-        let settle = window(0.90, 1.00)       // 收尾才从"扫过最亮"落到常亮
+        let rise = window(0.00, 0.05)         // 起头就亮起来
+        let settle = window(0.46, 0.92)       // 光走完之后，翻转过程中慢慢收成常亮
         return ZW.flipGlow * rise * (1 - settle) + ZW.flipGlowResting * settle
     }
 
@@ -155,9 +162,9 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
         return ZW.flipHaloResting * smoothstep(rise)
     }
 
-    /// 换面：翻转行程的中点（0.45 与 0.95 之间）。那一刻卡片侧对镜头，换面看不见
+    /// 换面：翻转行程的中点（0.50 与 0.92 之间）。那一刻卡片侧对镜头，换面看不见
     private var showsFront: Bool {
-        reduceMotion ? progress >= 0.5 : progress >= 0.70
+        reduceMotion ? progress >= 0.5 : progress >= 0.71
     }
 
     private var backOpacity: Double {
