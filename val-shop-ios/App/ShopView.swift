@@ -187,8 +187,9 @@ struct ShopView: View {
         }
     }
 
-    /// 一行说明：`下次刷新时间 · 引信条 · 倒计时` —— 引信条缩短后夹在中间，
-    /// 右边留给「翻开全部」。
+    /// 一行说明：`下次刷新时间 · 引信条 · 倒计时`（+ 右边的「翻开全部」）。
+    /// 引信条**顶满**：它把标签和倒计时之间、以及倒计时到按钮之间的空当全吃掉，
+    /// 右端不会留一截死空。
     private var lineUpHeader: some View {
         HStack(spacing: 8) {
             Text("下次刷新时间")
@@ -196,9 +197,9 @@ struct ShopView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize()
 
-            // 缩短的时间条（原来整行一条，现在只占 ZW.fuseWidth）
+            // 顶满：进度条吃掉标签和时间之间的所有空当（右边不留死空）
             fuse
-                .frame(width: ZW.fuseWidth)
+                .frame(minWidth: ZW.fuseWidth, maxWidth: .infinity)
 
             countdown
 
@@ -207,8 +208,6 @@ struct ShopView: View {
                 ProgressView()
                     .controlSize(.mini)
             }
-
-            Spacer(minLength: 6)
 
             Button {
                 flipAll()
@@ -233,9 +232,11 @@ struct ShopView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let secs = remainingSeconds(now: context.date)
             Text(clock(secs))
-                .zwMonoStyle(.caption)
+                .zwMonoStyle(.footnote)
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText(countsDown: true))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)      // 被挤的时候缩一点，别换行
                 .accessibilityLabel("距刷新 \(clock(secs))")
         }
     }

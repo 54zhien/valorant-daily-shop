@@ -47,8 +47,9 @@ enum ZW {
     /// 玻璃信息条（身份条）—— 玻璃块要更"圆"一点，这是 Liquid Glass 的观感
     static let radiusGlass: CGFloat = 26
 
-    /// 引信条（下次刷新进度）：缩短后塞进标题行里，只占这么宽
-    static let fuseWidth: CGFloat = 80
+    /// 引信条（下次刷新进度）：塞进标题行里，**顶满**标签和时间之间的空当，
+    /// 这里只是它不被压没的下限。窄屏（SE）上也不会短于这个宽度。
+    static let fuseWidth: CGFloat = 64
 
     /// 发丝线
     static let hairline: CGFloat = 1
