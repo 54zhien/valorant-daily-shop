@@ -100,20 +100,25 @@ enum ZW {
     // 光效分成两层：一根细线 + 线外面的一圈光晕。
     // 细线从点下去就有，绕完一圈也一直在；光晕只在"转完一圈"之后才亮起来。
 
-    /// 品质细线：走在卡牌**外面**那一圈（外扩 pt —— 是包在外面，不是缩在卡里）
-    static let flipLineInset: CGFloat = 2.5
-    /// 细线粗细 —— 要"细细的一根"，宁可窄也不要粗
-    static let flipLineWidth: CGFloat = 1.5
-    /// 细线本身的透明度
-    static let flipLineOpacity: Double = 0.95
+    /// 品质细线：**贴着卡边**（外扩 0.5pt ≈ 压在轮廓上），而且要"细细一根"
+    static let flipLineInset: CGFloat = 0.5
+    static let flipLineWidth: CGFloat = 1.0
+    /// 细线正常亮度 / 落定之后的亮度 —— **不是完全消失**，只是降下来
+    static let flipLineOpacity: Double = 1.0
+    static let flipLineRestOpacity: Double = 0.55
 
-    /// 细线外面那层光晕（画在卡底后面 → 只露在卡外）：粗细 / 模糊
-    static let flipGlowBand: CGFloat = 4
-    static let flipGlowBlur: CGFloat = 8
-    /// 光晕的峰值 —— "转完一圈，这根细线开始发光"
-    static let flipGlowPeak: Double = 0.90
-    /// 落定之后的光晕 —— **比裸线亮一点点**，不是完全灭掉
-    static let flipRestGlow: Double = 0.40
+    /// 晕染光的"宽柔层"：粗细 / 模糊
+    static let flipGlowBand: CGFloat = 6
+    static let flipGlowBlur: CGFloat = 12
+    /// 晕染光的"紧光层"：贴着细线再压一层，翻转那一下的"重"主要来自它
+    static let flipGlowCoreBand: CGFloat = 3
+    static let flipGlowCoreBlur: CGFloat = 2.5
+    /// 细线转动时的那层薄晕（"转的时候也得有点晕染"）
+    static let flipGlowDuringSweep: Double = 0.35
+    /// 抬起 / 翻转时的峰值 —— 这一段光要**再重一点**
+    static let flipGlowPeak: Double = 1.0
+    /// 落定之后
+    static let flipRestGlow: Double = 0.35
 }
 
 // ============================================================================
