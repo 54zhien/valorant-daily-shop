@@ -7,15 +7,15 @@ import SwiftUI
 //  点击之后按顺序发生这些事（不是同时）：
 //
 //     p 0.00 ─ 0.04   品质细线亮起（很快，但不硬切）
-//     p 0.02 ─ 0.46   细线**贴着卡边**绕一圈：慢 → 快 → 慢（smoothstep），
-//                     0.46 正好合拢。线细（1pt）、基本压在轮廓上（外扩 0.5pt）；
-//                     转动时线外面已经带着一层薄薄的晕染光。
-//     p 0.44 ─ 0.50   光头收线（合拢处不留亮点）
-//     p 0.28 ─ 0.46   卡牌向上升起，**抬起动作正好在细线合拢那一刻结束**；
+//     p 0.02 ─ 0.55   细线**贴着卡边**绕一圈：慢 → 快 → 慢（smoothstep），
+//                     0.55 正好合拢（约 900ms —— 这一版特意放慢了）。线细（0.6pt）、
+//                     基本压在轮廓上（外扩 0.5pt）；转动时线外已经带着一层薄晕染光。
+//     p 0.49 ─ 0.56   光头收线（合拢处不留亮点）
+//     p 0.35 ─ 0.55   卡牌向上升起，**抬起动作正好在细线合拢那一刻结束**；
 //                     同一段窗口里光晕从"薄晕"加重到峰值 —— 抬起 + 翻牌这一段光最重。
-//     p 0.48 ─ 0.80   翻转（抬着翻），末尾 3.2° 过冲再回正
-//     p 0.64          换面（翻转行程的中点 → 卡片侧对镜头，看不见）
-//     p 0.80 ─ 1.00   **落下**（这一段比原来长：0.20 × 1.4s ≈ 280ms）。
+//     p 0.58 ─ 0.84   翻转（抬着翻），末尾 3.2° 过冲再回正
+//     p 0.71          换面（翻转行程的中点 → 卡片侧对镜头，看不见）
+//     p 0.84 ─ 1.00   **落下**（约 270ms）。
 //                     翻完之后细线的不透明度开始下降、光晕也开始减弱，两者都在
 //                     **落地那一刻**正好走完 —— 细线停在 `flipLineRestOpacity`（0.55），
 //                     光晕停在 `flipRestGlow`（0.35）：减弱，但不是消失。
@@ -25,8 +25,8 @@ import SwiftUI
 //  想改节奏只改窗口的边界数字。
 //
 //  顺序上的硬规矩（probe/flow_probe.swift 守着）：
-//    ① **抬起动作结束 == 细线合拢**（两个窗口都是 0.46 收口），之后才翻
-//    ② 细线 / 光晕的**减弱窗口 == 落下窗口**（0.80→1.00），不是一下子变暗
+//    ① **抬起动作结束 == 细线合拢**（两个窗口都是 0.55 收口），之后才翻
+//    ② 细线 / 光晕的**减弱窗口 == 落下窗口**（0.84→1.00），不是一下子变暗
 //    ③ 没翻开的卡一点光都没有（零长度 sweep 不画 + opacity 在 0 处硬归零）
 //
 //  ⚠️ `animatableData` 必须显式 `nonisolated`
@@ -93,20 +93,20 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
 
     /// 细线扫过的角度（0…1 圈）：0.02 → 0.46，慢 → 快 → 慢
     private var ringProgress: Double {
-        reduceMotion ? 1 : smoothstep(window(0.02, 0.46))
+        reduceMotion ? 1 : smoothstep(window(0.02, 0.55))
     }
 
     /// 光头：最后一小段更白一点；合拢时就收掉（0.44→0.50）
     private var cometOpacity: Double {
-        reduceMotion ? 0 : 1 - window(0.44, 0.50)
+        reduceMotion ? 0 : 1 - window(0.49, 0.56)
     }
 
     /// 细线的不透明度。
-    /// 翻到正面之后（0.80）开始降，**落地那一刻降到 0.55** —— 不是消失。
+    /// 翻到正面之后（0.84）开始降，**落地那一刻降到 0.55** —— 不是消失。
     private var lineOpacity: Double {
         guard progress > 0 else { return 0 }
         let rise = reduceMotion ? 1 : window(0.00, 0.04)
-        let down = smoothstep(window(0.80, 1.00))
+        let down = smoothstep(window(0.84, 1.00))
         return (ZW.flipLineOpacity * (1 - down) + ZW.flipLineRestOpacity * down) * rise
     }
 
@@ -118,34 +118,34 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
             return ZW.flipRestGlow * smoothstep(window(0.10, 0.60))
         }
         let thin = ZW.flipGlowDuringSweep * window(0.00, 0.10)   // 转动时的薄晕
-        let heavy = smoothstep(window(0.28, 0.46))               // 抬起时加重
-        let down = smoothstep(window(0.80, 1.00))                // 落下时减弱
+        let heavy = smoothstep(window(0.35, 0.55))               // 抬起时加重
+        let down = smoothstep(window(0.84, 1.00))                // 落下时减弱
         let lit = thin + (ZW.flipGlowPeak - thin) * heavy
         return lit * (1 - down) + ZW.flipRestGlow * down
     }
 
     // MARK: - 抬升 / 翻转
 
-    /// 抬升量：0.28 → 0.46 升起（**0.46 正好到顶，也就是细线合拢那一刻**），
-    /// 0.80 之后落回 —— 落下这一段比原来长（约 280ms），光也是在这一段里减弱的。
+    /// 抬升量：0.35 → 0.55 升起（**0.55 正好到顶，也就是细线合拢那一刻**），
+    /// 0.84 之后落回 —— 光也是在这一段里减弱的。
     private var lift: Double {
         guard !reduceMotion else { return 0 }
-        let up = smoothstep(window(0.28, 0.46))
-        let down = smoothstep(window(0.80, 1.00))
+        let up = smoothstep(window(0.35, 0.55))
+        let down = smoothstep(window(0.84, 1.00))
         return up * (1 - down)
     }
 
-    /// 翻转角度：0.48→0.80（抬起结束、停一拍再翻），末尾 25% 加 3.2° 过冲再回正
+    /// 翻转角度：0.58→0.84（抬起结束、停一拍再翻），末尾 25% 加 3.2° 过冲再回正
     private var rotationAngle: Double {
         guard !reduceMotion else { return 0 }
-        let t = window(0.48, 0.80)
+        let t = window(0.58, 0.84)
         let tail = min(max((t - 0.75) / 0.25, 0), 1)
         return t * 180 + 3.2 * sin(.pi * tail)
     }
 
-    /// 换面：翻转行程的中点（0.48 与 0.80 之间）= 0.64
+    /// 换面：翻转行程的中点（0.58 与 0.84 之间）= 0.71
     private var showsFront: Bool {
-        reduceMotion ? progress >= 0.5 : progress >= 0.64
+        reduceMotion ? progress >= 0.5 : progress >= 0.71
     }
 
     private var backOpacity: Double {

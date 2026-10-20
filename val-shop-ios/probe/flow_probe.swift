@@ -5,7 +5,7 @@
 //  验的是这一版的口径（都在 FlipCard.swift 里，参数一一对应）：
 //
 //  ① **时序**
-//       · 细线 0.02→0.46 贴着卡边绕满一圈（慢→快→慢）
+//       · 细线 0.02→0.55 贴着卡边绕满一圈（900ms，慢→快→慢）
 //       · **抬起动作在 0.46 结束 == 细线合拢那一刻**；翻转 0.48 才起步
 //  ② **光晕三档**
 //       · 转动时就已经有一层薄晕 0.35（"转的时候也得有点晕染"）
@@ -22,14 +22,14 @@ import Foundation
 
 // ---- 从 FlipCard.swift 原样搬过来 -------------------------------------------
 
-let FLIP = 1.4            // ZW.flip
+let FLIP = 1.7            // ZW.flip
 let FRAMES = 84           // 1.4s @ 60fps
 
-let RING_FROM = 0.02, RING_TO = 0.46    // 细线绕一圈
-let LIFT_FROM = 0.28, LIFT_TO = 0.46    // 升起（到顶 == 合拢）
-let LIFT_DOWN_FROM = 0.80               // 开始落下
-let FLIP_FROM = 0.48, FLIP_TO = 0.80    // 翻转
-let COMET_FROM = 0.44, COMET_TO = 0.50  // 光头收线
+let RING_FROM = 0.02, RING_TO = 0.55    // 细线绕一圈（900ms，慢→快→慢）
+let LIFT_FROM = 0.35, LIFT_TO = 0.55    // 升起（到顶 == 合拢）
+let LIFT_DOWN_FROM = 0.84               // 开始落下
+let FLIP_FROM = 0.58, FLIP_TO = 0.84    // 翻转
+let COMET_FROM = 0.49, COMET_TO = 0.56  // 光头收线
 
 let LINE_PEAK = 1.0       // ZW.flipLineOpacity
 let LINE_REST = 0.55      // ZW.flipLineRestOpacity
@@ -154,8 +154,8 @@ check(abs(lineOpacity(0.90)) > LINE_REST && lineOpacity(0.90) < LINE_PEAK,
       "落下途中正在降", String(format: "p=0.90 → %.2f", lineOpacity(0.90)))
 check(abs(lineOpacity(1.00) - LINE_REST) < 1e-9,
       "落地正好停在 \(LINE_REST)（不消失）", String(format: "p=1.00 → %.2f", lineOpacity(1.00)))
-check(lineOpacity(0.79) > lineOpacity(0.81), "是翻完之后才开始降（0.80 起）",
-      String(format: "%.3f → %.3f", lineOpacity(0.79), lineOpacity(0.81)))
+check(lineOpacity(0.83) > lineOpacity(0.85), "是翻完之后才开始降（0.84 起）",
+      String(format: "%.3f → %.3f", lineOpacity(0.83), lineOpacity(0.85)))
 
 // ---- ④ 速度 ----------------------------------------------------------------
 
@@ -192,7 +192,7 @@ check(peakStep / max(meanMoving, 1e-9) > 1.25, "真的有一段「快」",
       String(format: "%.2f× 平均", peakStep / max(meanMoving, 1e-9)))
 
 print("\n== ⑤ 光头收线 ==")
-check(cometOpacity(0.42) > 0.5, "合拢前还亮着", String(format: "p=0.42 → %.2f", cometOpacity(0.42)))
+check(cometOpacity(0.52) > 0.5, "合拢前还亮着", String(format: "p=0.52 → %.2f", cometOpacity(0.52)))
 check(cometOpacity(COMET_TO) <= 1e-9, "合拢后收掉（不留亮点）",
       String(format: "p=%.2f → %.2f", COMET_TO, cometOpacity(COMET_TO)))
 

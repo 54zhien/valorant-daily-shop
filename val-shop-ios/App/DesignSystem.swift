@@ -81,8 +81,8 @@ enum ZW {
 
     /// 翻牌时长。
     /// 现在是一整段编排（光跑一圈 → 抬升 → 翻转 → 落下），不是单纯翻转，
-    /// 所以比原来长：1.4s。四张错开 130ms 连起来约 1.8s。
-    static let flip: Double = 1.4
+    /// 所以比原来长：1.7s（其中细线绕一圈就占 900ms）。四张错开 130ms 连起来约 2.1s。
+    static let flip: Double = 1.7
     /// 四张卡错开的间隔（毫秒）
     static let revealStagger: Int = 130
 

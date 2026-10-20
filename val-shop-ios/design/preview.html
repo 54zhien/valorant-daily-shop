@@ -196,12 +196,12 @@ body{
 }
 .card .flipper{
   position:absolute;inset:0;transform-style:preserve-3d;
-  /* 0.67s = 1.4s 的 0.48，0.45s = 翻转窗口 0.48→0.80 —— 和 App 侧
-     rotationAngle(0.48→0.80) 同一段：细线合拢、卡抬到最高、停一拍，才起翻。
+  /* 0.99s = 1.7s 的 0.58，0.44s = 翻转窗口 0.58→0.84 —— 和 App 侧
+     rotationAngle(0.58→0.84) 同一段：细线合拢、卡抬到最高、停一拍，才起翻。
      翻回来不延迟，点一下立刻往回走。 */
-  transition:transform .45s cubic-bezier(.42,0,.58,1);
+  transition:transform .44s cubic-bezier(.42,0,.58,1);
 }
-.card.flipped .flipper{transform:rotateY(180deg);transition-delay:.67s}
+.card.flipped .flipper{transform:rotateY(180deg);transition-delay:.99s}
 
 /* 卡面：反向预旋转 180°（外层再转 180° 就正好是正的）
    裁切用 clip-path，不用 overflow:hidden ——
@@ -219,29 +219,29 @@ body{
 /* ==========================================================================
    翻牌的整段编排（和 App 侧 FlipCard.swift 的时间窗口一一对应）
      0.00–0.04  品质细线亮起
-     0.02–0.46  细线贴着卡边绕一圈：慢 → 快 → 慢（smoothstep），0.46 合拢；
+     0.02–0.55  细线贴着卡边绕一圈：慢 → 快 → 慢（smoothstep），0.55 合拢（900ms）；
                 转动时线外已经带着一层薄晕
-     0.28–0.46  卡牌升起，**抬起动作在 0.46 结束（就是细线合拢那一刻）**；
+     0.35–0.55  卡牌升起，**抬起动作在 0.55 结束（就是细线合拢那一刻）**；
                 同一段里晕染从 0.35 加重到 1.0
-     0.44–0.50  光头收线
-     0.48–0.80  翻转（抬着翻）
-     0.80–1.00  落下（约 280ms，比原来长）；细线 1 → 0.55、晕染 1 → 0.35，
+     0.49–0.56  光头收线
+     0.58–0.84  翻转（抬着翻）
+     0.84–1.00  落下（约 270ms）；细线 1 → 0.55、晕染 1 → 0.35，
                 两者都在落地那一刻正好走完 —— 减弱，但不是消失
-   总时长 1.4s。
+   总时长 1.7s。
    ========================================================================== */
 
 /* 抬升 + 落下（位移 + 轻微放大 + 底部阴影）。
    0.28 开始升，**0.46 正好到顶 —— 也就是细线合拢那一刻**；0.80 起落下。
    落下窗口 0.80→1.00（约 280ms）比原来长，光也是在这一段里**渐弱**的。 */
 .card.flipped{
-  animation:zwLift 1.4s cubic-bezier(.42,0,.58,1),
-            zwSweep 1.4s linear forwards;
+  animation:zwLift 1.7s cubic-bezier(.42,0,.58,1),
+            zwSweep 1.7s linear forwards;
 }
 @keyframes zwLift{
   0%  {transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
-  28% {transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
-  46% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
-  80% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
+  35% {transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
+  55% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
+  84% {transform:translateY(-7px) scale(1.04);  box-shadow:0 16px 26px rgba(0,0,0,.55)}
   100%{transform:translateY(0) scale(1);        box-shadow:0 0 0 rgba(0,0,0,0)}
 }
 
@@ -285,29 +285,30 @@ body{
 /* 细线点下去就亮（zwLineFade），扫的角度靠 .card 上的 zwSweep 推。
    ⚠️ 必须 `forwards`：不然 1.4s 动画一结束，`.sweep` 就回到基础态 opacity:0 ——
    翻完之后那根细线会凭空消失（踩过一次，静态截图里看不出来，动起来才明显）。 */
-.card.flipped .sweep{animation:zwLineFade 1.4s linear forwards}
-.card.flipped .sweep::after{animation:zwHeadFade 1.4s linear}
+.card.flipped .sweep{animation:zwLineFade 1.7s linear forwards}
+.card.flipped .sweep::after{animation:zwHeadFade 1.7s linear}
 /* 细线：点下去就亮；**翻完之后（80%）开始降，落地（100%）正好停在 0.55** */
 @keyframes zwLineFade{
-  0%{opacity:0} 4%{opacity:1} 80%{opacity:1} 100%{opacity:.55}
+  0%{opacity:0} 4%{opacity:1} 84%{opacity:1} 100%{opacity:.55}
 }
 /* 光头：合拢前收掉（44% → 50%） */
 @keyframes zwHeadFade{
-  0%{opacity:0} 4%{opacity:1} 44%{opacity:1} 50%{opacity:0} 100%{opacity:0}
+  0%{opacity:0} 4%{opacity:1} 49%{opacity:1} 56%{opacity:0} 100%{opacity:0}
 }
 /* 扫过的角度：0 → 360（慢→快→慢），46% 走满后不再动（合拢就停） */
 @keyframes zwSweep{
   0%  {--sweep:0}
-  5%  {--sweep:4.8}
-  10% {--sweep:31.4}
-  15% {--sweep:75.7}
-  20% {--sweep:131.5}
-  25% {--sweep:180}
-  30% {--sweep:228.5}
-  35% {--sweep:284.3}
-  40% {--sweep:328.7}
-  45% {--sweep:355.2}
-  46% {--sweep:360}
+  5%  {--sweep:3.3}
+  10% {--sweep:22.1}
+  15% {--sweep:54.4}
+  20% {--sweep:96.4}
+  25% {--sweep:144.6}
+  30% {--sweep:195.3}
+  35% {--sweep:244.9}
+  40% {--sweep:289.8}
+  45% {--sweep:326.4}
+  50% {--sweep:351}
+  55% {--sweep:360}
   100%{--sweep:360}
 }
 
@@ -333,14 +334,14 @@ body{
       color-mix(in srgb,var(--tier) 85%,white) calc(var(--sweep) * 1deg),
       transparent calc(var(--sweep) * 1deg) 360deg);
 }
-.card.flipped .aura{animation:zwGlow 1.4s ease-out forwards}
+.card.flipped .aura{animation:zwGlow 1.7s ease-out forwards}
 /* 薄晕 0.35（转动中）→ 1.0（抬起到翻转）→ 0.35（落地） */
 @keyframes zwGlow{
   0%  {opacity:0}
   10% {opacity:.35}
-  28% {opacity:.35}
-  46% {opacity:1}
-  80% {opacity:1}
+  35% {opacity:.35}
+  55% {opacity:1}
+  84% {opacity:1}
   100%{opacity:.35}
 }
 
