@@ -12,8 +12,10 @@ import ZhangwaKit
 ///
 /// 没有「读取」按钮：进来自动读一次（`loadStoreIfNeeded`），要重读就下拉。
 ///
-/// 材质：**玻璃留给控件层**（导航栏、页签栏、翻开全部 —— 系统自己就是玻璃），
+/// 材质：玻璃留给控件层（导航栏、页签栏、翻开全部 —— 系统自己就是玻璃），
 /// 内容层一律用系统分组背景色，不透明。
+/// **唯一例外是身份条**：它长得像控件、也确实可点（多角色时点开切换），
+/// 所以走 `zwGlassCard()`（系统原生 `glassEffect`），圆角 `ZW.radiusGlass` 比内容卡更大。
 struct ShopView: View {
 
     @Environment(AppModel.self) private var model
@@ -90,10 +92,11 @@ struct ShopView: View {
 
             statusChip
         }
-        .padding(14)
-        .zwContentBackground(ZW.radiusGroup)
+        .padding(16)
+        // 液态玻璃（系统原生 `glassEffect`，见 LiquidGlass.swift）；圆角比内容卡更大
+        .zwGlassCard()
         // 多角色时才可点 —— 一个人一个号的时候不该有入口
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: ZW.radiusGlass, style: .continuous))
         .onTapGesture {
             if model.canSwitchRole { showRolePicker = true }
         }
@@ -170,8 +173,6 @@ struct ShopView: View {
     private var lineUp: some View {
         VStack(spacing: 0) {
             lineUpHeader
-            fuse
-                .padding(.bottom, 12)
 
             // 卡阵间距用 cardGap（比常规块间距大）：翻牌的光要留在自己那块地方
             LazyVGrid(columns: columns, spacing: ZW.cardGap) {
@@ -186,11 +187,20 @@ struct ShopView: View {
         }
     }
 
+    /// 一行说明：`下次刷新时间 · 引信条 · 倒计时` —— 引信条缩短后夹在中间，
+    /// 右边留给「翻开全部」。
     private var lineUpHeader: some View {
-        HStack(spacing: 10) {
-            Text("Daily Store".uppercased())
-                .zwMachine(.caption)
+        HStack(spacing: 8) {
+            Text("下次刷新时间")
+                .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize()
+
+            // 缩短的时间条（原来整行一条，现在只占 ZW.fuseWidth）
+            fuse
+                .frame(width: ZW.fuseWidth)
+
+            countdown
 
             // 冷启动时可能先在显示上一期的缓存，正在拉新的 —— 给个不打扰的提示
             if model.state.isLoading {
@@ -198,9 +208,7 @@ struct ShopView: View {
                     .controlSize(.mini)
             }
 
-            Spacer(minLength: 0)
-
-            countdown
+            Spacer(minLength: 6)
 
             Button {
                 flipAll()
@@ -213,7 +221,9 @@ struct ShopView: View {
             .disabled(model.flipped.allSatisfy { $0 })
         }
         .padding(.horizontal, 2)
-        .padding(.bottom, 8)
+        // 卡阵整体往下挪一点：原来这里下面还有一整条引信，现在引信挪进这一行了，
+        // 下边距补回那条的高度再多给一点
+        .padding(.bottom, 30)
     }
 
     /// 倒计时走自己的一秒一拍 —— 只重绘这一小块
@@ -249,7 +259,7 @@ struct ShopView: View {
             }
             .frame(height: 4)
             .accessibilityElement()
-            .accessibilityLabel("今天的进度")
+            .accessibilityLabel("距离下次刷新的进度")
             .accessibilityValue("\(Int(ratio * 100))%")
         }
     }

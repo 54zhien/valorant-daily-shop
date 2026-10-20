@@ -224,7 +224,7 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 |---|---|---|
 | 字号走 Dynamic Type，不写死点数 | HIG Typography / [Scaling fonts automatically](https://developer.apple.com/documentation/UIKit/scaling-fonts-automatically) | 全项目 **0 处** `.font(.system(size:))`，只有 `.caption2 / .caption / .footnote / .subheadline / .callout / .body / .headline / .title3` |
 | 文字用语义色，颜色定义在资产目录 | [HIG Color](https://developer.apple.com/design/human-interface-guidelines/color) / [Supporting Dark Mode](https://developer.apple.com/documentation/UIKit/supporting-dark-mode-in-your-interface) | 文字只有 `.primary / .secondary / .tertiary`；底色只有 `Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`；品牌红、青绿进 `Assets.xcassets`（`zwRouge` / `zwSignal`）；`Info.plist` 声明 `UIUserInterfaceStyle = Dark` |
-| 玻璃是**控件层**的材质 | [HIG Materials](https://developer.apple.com/design/human-interface-guidelines/materials) | TabBar / NavigationBar / sheet / `.glassProminent` 按钮 —— 全部由系统提供。内容层（卡片、分组、身份卡）不透明。项目里**不再自己调 `glassEffect`** |
+| 玻璃是**控件层**的材质 | [HIG Materials](https://developer.apple.com/design/human-interface-guidelines/materials) | TabBar / NavigationBar / sheet / `.glassProminent` 按钮 —— 全部由系统提供。内容层（卡片、分组）不透明；**唯一例外是身份条**（长得像控件、也确实可点），走 `zwGlassCard()` = 原生 `glassEffect(.regular.interactive())`，全项目只在 `LiquidGlass.swift` 里调一次 |
 | 设置类内容用 List / Form | [HIG Lists and tables](https://developer.apple.com/design/human-interface-guidelines/lists-and-tables) | 「我的」「诊断台」「抓到的接口」「切换角色」都是 `List` + `LabeledContent`，分隔线 / VoiceOver / 键盘导航全是白拿的 |
 | 自定义手势不能是唯一入口 | [HIG Gestures](https://developer.apple.com/design/human-interface-guidelines/gestures) | 诊断台改成「我的 → 关于 → 诊断」一行明码，不再靠长按版本号 |
 | 自定义控件要报值 | [HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility) | 引信条报 `accessibilityValue("NN%")`；卡片报「第 N 张 / 名称 / 价格 / 已拥有」 |
@@ -386,8 +386,8 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 
 | 要求 | 实现 |
 |---|---|
-| Liquid Glass | 玻璃**只作控件层材质**（HIG Materials）：`TabView` / `NavigationStack` / `.sheet` 全由系统出玻璃；按钮用 `ButtonStyle.glass` ⇄ `glassProminent`；`.tabBarMinimizeBehavior(.onScrollDown)`；`.scrollEdgeEffectStyle(.soft, for:)` 走 `zwScrollEdge()`。项目内**已无一处**直接调 `glassEffect` |
-| 内容层材质 | 不透明：`Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`，全部系统语义色 |
+| Liquid Glass | 玻璃**只作控件层材质**（HIG Materials）：`TabView` / `NavigationStack` / `.sheet` 全由系统出玻璃；按钮用 `ButtonStyle.glass` ⇄ `glassProminent`；`.tabBarMinimizeBehavior(.onScrollDown)`；`.scrollEdgeEffectStyle(.soft, for:)` 走 `zwScrollEdge()`。`glassEffect` 只在 `zwGlassCard()` 里出现一次（身份条），圆角走 `ZW.radiusGlass = 26` |
+| 内容层材质 | 不透明：`Color(.systemBackground)` / `.secondarySystemGroupedBackground` / `.tertiarySystemFill`，全部系统语义色。身份条例外：液态玻璃（`zwGlassCard()`） |
 | 颜色来源 | 品牌红青绿在 `Assets.xcassets` 的 colorset；文字只用 `.primary/.secondary/.tertiary`（HIG Color） |
 | 外观 | `Info.plist` 声明 `UIUserInterfaceStyle = Dark`，纯深色 App（HIG Supporting Dark Mode） |
 | 字体 | 全部 Dynamic Type 文本样式；两处腔调 = 系统字体 + `weight`/`width`/`design`，无第三方字体（HIG Typography） |

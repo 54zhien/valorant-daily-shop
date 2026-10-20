@@ -51,6 +51,7 @@
   --r-group:12px;
   --r-card:20px;
   --r-control:11px;
+  --r-glass:26px;
   --pad:16px;
   /* 卡阵间距：翻牌时光会从卡边往外渗 10pt 左右（见 .card .aura），
      间距得留够，不然光会糊到隔壁卡上。App 侧同值：ZW.cardGap */
@@ -148,7 +149,23 @@ body{
    ① 身份条（内容卡）
    ========================================================================== */
 .idbar{
-  display:flex;align-items:center;gap:12px;padding:12px;margin-top:2px;
+  display:flex;align-items:center;gap:12px;padding:14px 16px;margin-top:2px;
+  /* 液态玻璃（App 侧是系统原生 glassEffect；这里手写一个近似）：
+     半透明材质 + 背景模糊/加饱和 + 内高光 + 顶部镜面渐变 */
+  position:relative;
+  border-radius:var(--r-glass);
+  background:linear-gradient(180deg,
+      rgba(255,255,255,.15), rgba(255,255,255,.07) 46%, rgba(255,255,255,.035));
+  backdrop-filter:blur(24px) saturate(1.8);
+  -webkit-backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),
+             inset 0 1px 0 rgba(255,255,255,.30),
+             inset 0 -1px 0 rgba(0,0,0,.45),
+             0 12px 28px rgba(0,0,0,.42);
+}
+.idbar::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(120deg,transparent 38%,rgba(255,255,255,.10) 48%,transparent 60%);
 }
 .idbar .av{
   width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:var(--r-control);
@@ -170,20 +187,21 @@ body{
    ② 今日四张（分组内容：小标 + 引信条 + 卡阵 + 统计）
    ========================================================================== */
 .board{margin-top:8px}
-.board .head{display:flex;align-items:center;gap:10px;padding:0 2px 6px}
-.board .head .t{font-size:11px;color:var(--label-2)}
+.board .head{display:flex;align-items:center;gap:8px;padding:0 2px 30px}
+.board .head .t{font-size:12px;color:var(--label-2);white-space:nowrap}
 .board .head .c{font-size:12px;color:var(--label-2)}
 .board .head .row{display:flex;align-items:center;gap:10px;margin-left:auto}
 
 /* 控件层的次级按钮：系统 .glass 样式 */
 .board .head .act{
+  margin-left:auto;
   font-size:12px;color:var(--label);cursor:pointer;padding:6px 12px;border-radius:999px;
   background:rgba(120,120,128,.28);border:1px solid rgba(255,255,255,.10);
 }
 .board .head .act:disabled{opacity:.45}
 
 /* 引信条 */
-.fuse{position:relative;height:2px;margin:0 2px 8px;border-radius:2px;background:var(--fill)}
+.fuse{position:relative;flex:0 0 72px;height:2px;border-radius:2px;background:var(--fill)}
 .fuse .fill{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--rouge);transition:width .6s linear}
 
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);perspective:1100px}
@@ -543,7 +561,7 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
           <div class="navbar"><div class="ntitle">每日商店</div></div>
           <div class="scroll">
 
-            <div class="idbar g-lg g-fill">
+            <div class="idbar">
               <div class="av g-sm">天</div>
               <div class="who">
                 <div class="gid">天天开心#26170<span class="swap">⇅</span></div>
@@ -554,15 +572,13 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
 
             <div class="board">
               <div class="head">
-                <div class="t machine">Daily Store</div>
-                <div class="row">
-                  <div class="c mono live" id="clk">16:47:13</div>
-                  <button class="act machine g-sm" id="flipall">翻开全部</button>
+                <div class="t">下次刷新时间</div>
+                <div class="fuse">
+                  <div class="fill" id="fuse" style="width:30%"></div>
+                  <div class="head-mark" id="fusehead" style="left:30%"></div>
                 </div>
-              </div>
-              <div class="fuse">
-                <div class="fill" id="fuse" style="width:30%"></div>
-                <div class="head-mark" id="fusehead" style="left:30%"></div>
+                <div class="c mono live" id="clk">16:47:13</div>
+                <button class="act machine g-sm" id="flipall">翻开全部</button>
               </div>
               <div class="slots" id="slots">
                 <!-- 四个卡背（JS 生成） -->
@@ -589,7 +605,7 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
           <div class="navbar"><div class="ntitle">每日商店</div></div>
           <div class="scroll">
 
-            <div class="idbar g-lg g-fill">
+            <div class="idbar">
               <div class="av g-sm">天</div>
               <div class="who">
                 <div class="gid">天天开心#26170<span class="swap">⇅</span></div>
@@ -600,13 +616,11 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
 
             <div class="board">
               <div class="head">
-                <div class="t machine">Daily Store</div>
-                <div class="row">
-                  <div class="c mono live">15:41:22</div>
-                  <button class="act machine g-sm">翻开全部</button>
-                </div>
+                <div class="t">下次刷新时间</div>
+                <div class="fuse"><div class="fill" style="width:35%"></div><div class="head-mark" style="left:35%"></div></div>
+                <div class="c mono live">15:41:22</div>
+                <button class="act machine g-sm">翻开全部</button>
               </div>
-              <div class="fuse"><div class="fill" style="width:35%"></div><div class="head-mark" style="left:35%"></div></div>
               <div class="slots" id="slots2"></div>
             </div>
 
@@ -630,7 +644,7 @@ footer.pagefoot{margin-top:56px;color:var(--label-3);font-size:11.5px;border-top
           <div class="navbar"><div class="ntitle">每日商店</div></div>
           <div class="scroll">
 
-            <div class="idbar g-lg g-fill">
+            <div class="idbar">
               <div class="av g-sm" style="color:var(--dim)">?</div>
               <div class="who">
                 <div class="gid" style="color:var(--dim)">未登录</div>
