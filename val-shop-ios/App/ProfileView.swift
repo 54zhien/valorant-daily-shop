@@ -94,53 +94,23 @@ struct ProfileView: View {
 
     // MARK: - 账号
 
+    /// 只留一句话：这次是怎么登进来的。头像、段位都不放 ——
+    /// 商店页的账号条上已经有了，这里不重复。
     private var accountSection: some View {
         Section {
-            HStack(spacing: 14) {
-                avatar
-
-                VStack(alignment: .leading, spacing: 3) {
-                    // 这里不再重复游戏 ID（商店页已经有了），改成说"怎么登进来的"。
-                    // 原来「已登录」前面那个菱形挪到这句前面。
-                    HStack(spacing: 6) {
-                        ZWDiamond()
-                            .fill(model.sessionHealth.tint)
-                            .frame(width: 8, height: 8)
-                        Text(model.loginMethodLabel)
-                            .font(.headline)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    Text(model.displaySubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
+            HStack(spacing: 8) {
+                ZWDiamond()
+                    .fill(model.sessionHealth.tint)
+                    .frame(width: 8, height: 8)
+                Text(model.loginMethodLabel)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 2)
             .accessibilityElement(children: .combine)
         }
-    }
-
-    private var avatar: some View {
-        ZStack {
-            Color(.tertiarySystemFill)
-            if let icon = model.userRole?.icon, !icon.isEmpty, let url = URL(string: icon) {
-                CachedImage(url: url, contentMode: .fill) { initial }
-            } else {
-                initial
-            }
-        }
-        .frame(width: 52, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private var initial: some View {
-        Text(String(model.displayName.prefix(1)))
-            .font(.title3.weight(.bold))
-            .foregroundStyle(model.hasSession ? Color.primary : Color.secondary)
     }
 }
 
