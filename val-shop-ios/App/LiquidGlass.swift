@@ -46,21 +46,35 @@ extension View {
                     in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
-    /// 卡牌用的液态玻璃：系统 `glassEffect` + 一圈边缘镜面高光。
+    /// 卡牌用的液态玻璃。
     ///
-    /// 只给 `FlipCard` 用（卡面就是一块玻璃）。玻璃画在内容**后面**，
-    /// 所以卡背斜纹、卡面品质渐变、名字价格都还在它上面。
-    /// 和 `zwGlassCard` 的区别：这个不带 `.interactive()`（卡片不是控件，
-    /// 按住时不该有形变反馈）。
-    func zwCardGlass(_ radius: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        return glassEffect(.regular, in: shape)
+    /// ⚠️ **不用 `glassEffect`**，也不要用 `.ultraThinMaterial`：
+    /// 卡牌整张会被 `rotation3DEffect` 翻过来，玻璃那种"折射 + backdrop 采样"的图层
+    /// 在 3D 上下文里表现不可靠（翻到侧身时会被压平/闪/留在原地）。
+    /// 所以这里用**纯图层**画玻璃：半透明底 + 左上镜面 + 一圈边缘高光。
+    /// 它没有模糊，但随 3D 变换完全正常，而且便宜得多。
+    ///
+    /// - `fill`：先垫一层半透明深底（保证翻牌时不会看穿卡片看到背面），再压白渐变。
+    /// - `overlay`：边缘镜面 —— 左上亮、右下收，是"这块是玻璃"最直接的信号。
+    func zwCardGlass(_ radius: CGFloat, cornerStyle: RoundedCornerStyle = .circular) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: cornerStyle)
+        return self
+            .background {
+                ZStack {
+                    shape.fill(Color(.secondarySystemGroupedBackground).opacity(0.72))
+                    shape.fill(
+                        LinearGradient(colors: [.white.opacity(0.16),
+                                                .white.opacity(0.055),
+                                                .white.opacity(0.03)],
+                                       startPoint: .topLeading,
+                                       endPoint: .bottomTrailing))
+                }
+            }
             .overlay {
-                // 玻璃的"边缘镜面"：左上亮、右下收，是一块玻璃最容易被认出来的特征
                 shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.30),
-                                            .white.opacity(0.04),
-                                            .white.opacity(0.12)],
+                    LinearGradient(colors: [.white.opacity(0.32),
+                                            .white.opacity(0.05),
+                                            .white.opacity(0.14)],
                                    startPoint: .topLeading,
                                    endPoint: .bottomTrailing),
                     lineWidth: 0.8)

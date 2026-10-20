@@ -156,8 +156,11 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
         reduceMotion ? progress : (showsFront ? 1 : 0)
     }
 
+    /// ⚠️ 必须是 `.circular`：`ZWRingSweep` 画的是**圆弧**圆角，
+    /// 卡牌用 `.continuous`（squircle）的话，圆弧在 45° 处会切进卡片里 ——
+    /// 表现就是"边线没贴住卡、四角圆角看着小了"。两个形状必须是同一种。
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .circular)
     }
 
     // MARK: - 视图
@@ -176,7 +179,7 @@ private struct Flipper<Back: View, Front: View>: View, Animatable {
         }
         .clipShape(shape)
         // 卡面：Apple 液态玻璃（取代原来的不透明分组底），见 LiquidGlass.zwCardGlass
-        .zwCardGlass(cornerRadius)
+        .zwCardGlass(cornerRadius, cornerStyle: .circular)
         // 晕染光画在玻璃**后面**：玻璃是半透的，所以边缘会透进一点点光 ——
         // 这正是玻璃该有的样子；要高对比就把 edgeGlow 的不透明度调回去。
         .background { edgeGlow }

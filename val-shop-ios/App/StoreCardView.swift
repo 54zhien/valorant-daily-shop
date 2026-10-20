@@ -29,8 +29,10 @@ struct StoreCardView: View {
 
     private var tint: Color { item.accentColor }
 
+    /// 和 `FlipCard` 一样用 `.circular` —— 边线（ZWRingSweep 的圆弧）必须和卡面同一种圆角，
+    /// 否则四角会差出 1–2pt（`.continuous` 是 squircle，圆弧在 45° 处会更往里收）。
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous)
+        RoundedRectangle(cornerRadius: ZW.radiusCard, style: .circular)
     }
 
     var body: some View {

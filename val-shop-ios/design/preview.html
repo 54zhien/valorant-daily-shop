@@ -217,15 +217,15 @@ body{
   cursor:pointer;
 }
 /* 玻璃挂在 **.flipper 的伪元素**上：它跟着卡一起转，翻到侧身时会被一起压扁。
-   挂 .card 上的话，卡转了玻璃还是平的 —— 会留一块不动的板子在后面。 */
+   挂 .card 上的话，卡转了玻璃还是平的 —— 会留一块不动的板子在后面。
+   ⚠️ 这里**不用 backdrop-filter**：App 侧同样不用（玻璃图层进了 3D 翻转会出问题），
+   两边都靠"半透明底 + 左上镜面 + 边缘高光"画玻璃。 */
 .card .flipper::before{
   content:"";position:absolute;inset:0;border-radius:var(--r-card);pointer-events:none;
-  background:linear-gradient(135deg,rgba(255,255,255,.22),transparent 46%),
-             linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05) 62%);
-  backdrop-filter:blur(18px) saturate(1.6);
-  -webkit-backdrop-filter:blur(18px) saturate(1.6);
+  background:linear-gradient(135deg,rgba(255,255,255,.20),rgba(255,255,255,.06) 46%,rgba(255,255,255,.03)),
+             linear-gradient(rgba(28,28,30,.72),rgba(28,28,30,.72));
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),
-             inset 0 1px 0 rgba(255,255,255,.24),
+             inset 0 1px 0 rgba(255,255,255,.26),
              inset 0 -1px 0 rgba(0,0,0,.32);
 }
 .card .flipper{
