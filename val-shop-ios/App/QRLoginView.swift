@@ -39,25 +39,8 @@ struct QRLoginView: View {
                     statusRow
                 }
 
-                if !login.log.isEmpty {
-                    Section("过程") {
-                        ForEach(Array(login.log.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-
-                Section {
-                    Text("二维码由微信官方服务器为「掌上无畏契约」的官方 AppID 生成，"
-                         + "授权由你在微信里确认。登录成功后拿到的是和官方客户端一样的凭证。")
-                } header: {
-                    Label("这是官方登录渠道", systemImage: "checkmark.seal")
-                } footer: {
-                    Text("扫一次就够了 —— 之后会自动续期，不用再扫。")
-                }
+                // 只留二维码 + 状态。过程日志和说明文字都去掉了 ——
+                // 扫码页就该只有一张码。
             }
             .navigationTitle("微信扫码登录")
             .navigationBarTitleDisplayMode(.inline)

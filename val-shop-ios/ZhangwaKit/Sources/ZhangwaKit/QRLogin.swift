@@ -150,7 +150,17 @@ public final class QRLogin {
     public func start() {
         task?.cancel()
         task = Task { [weak self] in
-            await self?.run()
+            guard let self else { return }
+            // 码过期就自动再来一张（最多 2 次）。
+            // 以前是直接停在「已过期，点一下换一张」—— 用户扫到一半码过期是常事，
+            // 让他自己点一次纯属把我们的问题丢给他。
+            var autoRefreshed = 0
+            while !Task.isCancelled {
+                let expired = await self.run()
+                guard expired, autoRefreshed < 2, !Task.isCancelled else { break }
+                autoRefreshed += 1
+                self.log("二维码过期，自动换一张（第 \(autoRefreshed) 次）")
+            }
         }
     }
 
@@ -165,22 +175,15 @@ public final class QRLogin {
 
     // MARK: 流程
 
-    private func run() async {
+    /// 跑一轮。返回 `true` 表示**二维码过期**（外层会自动换一张）。
+    private func run() async -> Bool {
         do {
             setStage(.preparing)
 
-            // ① 拿 ticket
-            let ticket = try await requestTicket()
-            log("① ticket 长度 \(ticket.count)")
-
-            // ② 自己算签名
-            let nonce = Self.randomNonce()
-            let ts = String(Int(Date().timeIntervalSince1970))
-            let signature = Self.signature(nonce: nonce, ticket: ticket, timestamp: ts)
-            log("② signature = \(signature)")
-
-            // ③ 申请二维码
-            let qr = try await requestQRCode(nonce: nonce, timestamp: ts, signature: signature)
+            // ① ticket + ② 签名 + ③ 申请二维码 —— 一起重试：
+            //    这三步里任何一步网络抖一下，以前都是直接报错让用户重扫，
+            //    现在自动重试 3 次（0.6s、1.2s 退避），绝大多数抖动都能自己过去。
+            let qr = try await prepareQRCode()
             image = qr
             setStage(.waiting)
             log("③ 拿到二维码 uuid=\(qr.uuid)，图片 \(qr.data.count) 字节")
@@ -194,19 +197,50 @@ public final class QRLogin {
             setStage(.success)
             log("⑤ 登录成功，userID=\(session.userID)")
             onSession?(session)
+            return false
 
         } catch is CancellationError {
             setStage(.cancelled)
+            return false
         } catch let ZhangwaError.api(code, _, _) where code == 402 {
-            setStage(.expired)
             log("二维码过期（402）")
+            return true
         } catch let ZhangwaError.api(code, _, _) where code == 403 {
             setStage(.cancelled)
             log("用户取消（403）")
+            return false
         } catch {
             setStage(.failed(error.localizedDescription))
             log("✗ \(error.localizedDescription)")
+            return false
         }
+    }
+
+    /// ① ticket → ② 签名 → ③ 申请二维码，带重试。
+    private func prepareQRCode(attempts: Int = 3) async throws -> QRImage {
+        var lastError: Error?
+        for attempt in 0..<attempts {
+            try Task.checkCancellation()
+            do {
+                let ticket = try await requestTicket()
+                log("① ticket 长度 \(ticket.count)（第 \(attempt + 1) 次）")
+
+                let nonce = Self.randomNonce()
+                let ts = String(Int(Date().timeIntervalSince1970))
+                let signature = Self.signature(nonce: nonce, ticket: ticket, timestamp: ts)
+
+                return try await requestQRCode(nonce: nonce, timestamp: ts, signature: signature)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastError = error
+                log("⟳ 第 \(attempt + 1) 次取码失败：\(error.localizedDescription)")
+                if attempt + 1 < attempts {
+                    try? await Task.sleep(nanoseconds: UInt64(600_000_000) * UInt64(attempt + 1))
+                }
+            }
+        }
+        throw lastError ?? ZhangwaError.transport("取码失败")
     }
 
     // MARK: 各步骤
@@ -281,6 +315,8 @@ public final class QRLogin {
     /// ④ 长轮询，直到拿到 wx_code
     public func poll(uuid: String) async throws -> String {
         var last: Int? = nil
+        /// 连续失败次数：长轮询抖一下不该让整个会话结束
+        var hiccups = 0
         // 二维码大约 5 分钟有效，轮询按 30 秒一次算，给足余量
         for _ in 0..<60 {
             try Task.checkCancellation()
@@ -296,7 +332,20 @@ public final class QRLogin {
                          + "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
                          forHTTPHeaderField: "User-Agent")
 
-            let (data, _) = try await transport(req, Self.pollTimeout)
+            var data = Data()
+            do {
+                let result = try await transport(req, Self.pollTimeout)
+                data = result.0
+                hiccups = 0
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                hiccups += 1
+                // 连续 4 次都失败才认输；中间任何一次成功就重新计数
+                if hiccups > 4 { throw error }
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                continue
+            }
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 continue
             }

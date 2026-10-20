@@ -28,13 +28,14 @@ struct QQLoginView: View {
     @State private var stage: QQLogin.Stage = .idle
     @State private var url: URL?
     @State private var reloadToken = UUID()
-    /// 诊断信息（导航 + 页面探针）。二维码失效到底是服务端判的还是我们这边的问题，
-    /// 看这个就能分辨 —— 别再靠猜。默认不显示，点「诊断」才出来。
-    @State private var diag: [String] = []
-    @State private var showDiag = false
+
     /// 网页里二维码的位置（CSS px，相对视口）。量到之后就把整页裁成一张二维码 ——
     /// 和微信登录那页长得一样：一张码 + 一行提示，没有网页的页头页脚。
     @State private var qrRect: CGRect?
+    /// 看门狗重载次数（页面卡住时自救，最多两次）
+    @State private var watchdogReloads = 0
+    /// 上一次「页面报码失效」的时间，用来防抖
+    @State private var invalidStamp = Date.distantPast
 
     /// 二维码格子边长：和微信登录同一个数，两页看起来是一套
     private static let qrSide: CGFloat = 224
@@ -74,52 +75,31 @@ struct QQLoginView: View {
                         Label("换一张码", systemImage: "arrow.clockwise")
                     }
                 }
-                if !diag.isEmpty {
-                    ToolbarItem(placement: .bottomBar) {
-                        Button("诊断") { showDiag = true }
-                            .font(.footnote)
-                    }
-                }
-            }
-            .sheet(isPresented: $showDiag) {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(Array(diag.enumerated()), id: \.offset) { _, line in
-                                Text(line)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .padding(ZW.pad)
-                    }
-                    .navigationTitle("QQ 扫码诊断")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("好") { showDiag = false }
-                        }
-                    }
-                }
-                .presentationDetents([.medium, .large])
             }
         }
         .onAppear { wire() }
-        // QQ 的二维码有 TTL（约两三分钟）。页面自带 autorefresh=1，
-        // 但不保证生效，所以自己也兜一层：还在等扫码就定期换一张。
+        // ⚠️ 以前是「不管三七二十一，90 秒换一张」—— 用户正好在第 89 秒扫码时，
+        //    码在他眼皮底下被换掉了，扫了也白扫。这是不稳的主因。
+        // 现在两头都管：
+        //   · 主要靠页面自己说：探针看到 #qr_invalid 显示 / tips 带"失效""过期" 才换码
+        //     （在 onQRInvalid 里，见 webLayer）
+        //   · 兜底：240 秒还没动静才盲换一次，防止页面压根不报
         .task(id: reloadToken) {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 90_000_000_000)   // 90 秒
-                if Task.isCancelled { break }
-                if stage == .waiting || stage == .loading {
-                    diag.insert("\u{27F3} 自动换码（90 秒到）", at: 0)
-                    reloadToken = UUID()
-                    stage = .loading
-                } else {
-                    break
-                }
+            try? await Task.sleep(nanoseconds: 240_000_000_000)
+            guard !Task.isCancelled else { return }
+            if stage == .waiting || stage == .loading {
+                reloadToken = UUID()
+                stage = .loading
+            }
+        }
+        // 看门狗：8 秒还没量到二维码（页面卡住 / 二维码压根没出来）就重载一次，
+        // 最多两次。不然用户只会盯着「正在准备二维码…」发呆。
+        .task(id: reloadToken) {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard !Task.isCancelled else { return }
+            if qrRect == nil, url != nil, watchdogReloads < 2 {
+                watchdogReloads += 1
+                reloadToken = UUID()
             }
         }
     }
@@ -183,17 +163,18 @@ struct QQLoginView: View {
                           onFailed: { msg in
                               stage = .failed(msg)
                           },
-                          onNavigate: { target, isMain in
-                              diag.insert("\u{2192} \(isMain ? "主" : "子") \(target.absoluteString.prefix(120))", at: 0)
-                              if diag.count > 12 { diag.removeLast() }
-                          },
-                          onProbe: { info in
-                              diag.insert("QR \(info)", at: 0)
-                              if diag.count > 12 { diag.removeLast() }
-                          },
                           onQRRect: { rect in
                               // 只在真的变了的时候写，避免每帧都触发重绘
                               if qrRect != rect { withAnimation(.easeOut(duration: 0.2)) { qrRect = rect } }
+                          },
+                          onQRInvalid: {
+                              // 页面自己说码失效了才换 —— 不再靠定时器盲换（那样会在
+                              // 用户扫码的瞬间把码换掉）。0.6 秒防抖，避免连续几条探针都触发。
+                              let now = Date()
+                              guard now.timeIntervalSince(invalidStamp) > 0.6 else { return }
+                              invalidStamp = now
+                              reloadToken = UUID()
+                              stage = .loading
                           })
                 .frame(width: Self.pageSize.width, height: Self.pageSize.height)
                 .scaleEffect(webScale, anchor: .topLeading)
@@ -272,30 +253,28 @@ struct QQLoginView: View {
     ///   Cookie，ptlogin2 会话建不起来 —— 二维码画不出来或者扫了说过期。
     ///   我们自己抠 URL、自己导航，就永远是**顶层导航**，不给它走 iframe 的机会。
     @MainActor
-    private func prepare() async {
-        diag.removeAll()
+    private func prepare(attempt: Int = 0) async {
         url = nil
         qrRect = nil
+        watchdogReloads = 0
         stage = .loading
-        let ts = QQLogin.nowTimestamp()
-        diag.insert("① 请求入口页（time=\(ts)，签名本地算）", at: 0)
         do {
-            let entry = try await login.fetchEntryURL(time: ts)
-            diag.insert("② 抠到登录页 → \(entry.host ?? "?")", at: 0)
-            diag.insert("③ 顶层导航（绕开页面的 isIos/iframe 分支）", at: 0)
-            if diag.count > 16 { diag.removeLast() }
+            let entry = try await login.fetchEntryURL(time: QQLogin.nowTimestamp())
             url = entry
         } catch {
+            // 抓入口页失败多半是网络抖了一下：自动再试一次，
+            // 不要一上来就让用户看错误（他除了关掉重开也没别的可做）。
+            if attempt < 1 {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                guard !Task.isCancelled else { return }
+                await prepare(attempt: attempt + 1)
+                return
+            }
             stage = .failed(error.localizedDescription)
-            diag.insert("✗ 抓入口页失败：\(error.localizedDescription)", at: 0)
-            diag.insert("   （如果这行出现，多半是网络或 sign/time 被拒）", at: 0)
         }
     }
 
-    /// 重来：重新算 time + sign + 重抓入口页
-    private func restart() {
-        Task { await prepare() }
-    }
+
 }
 // MARK: - WKWebView 包装
 
@@ -366,11 +345,13 @@ struct QQWebView: UIViewRepresentable {
     var onProbe: ((String) -> Void)?
     /// 页面里二维码的位置（CSS px，相对视口）—— 上层据此把整页裁成一张二维码
     var onQRRect: ((CGRect) -> Void)?
+    /// 页面自己说二维码失效了（#qr_invalid 显示 / tips 带"失效""过期"）
+    var onQRInvalid: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onCallback: onCallback, onLoaded: onLoaded,
                     onFailed: onFailed, onNavigate: onNavigate, onProbe: onProbe,
-                    onQRRect: onQRRect)
+                    onQRRect: onQRRect, onQRInvalid: onQRInvalid)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -426,6 +407,7 @@ struct QQWebView: UIViewRepresentable {
         let onNavigate: ((URL, Bool) -> Void)?
         let onProbe: ((String) -> Void)?
         let onQRRect: ((CGRect) -> Void)?
+        let onQRInvalid: (() -> Void)?
 
         weak var web: WKWebView?
         var gate = ReloadGate()
@@ -437,13 +419,15 @@ struct QQWebView: UIViewRepresentable {
              onFailed: @escaping (String) -> Void,
              onNavigate: ((URL, Bool) -> Void)?,
              onProbe: ((String) -> Void)?,
-             onQRRect: ((CGRect) -> Void)?) {
+             onQRRect: ((CGRect) -> Void)?,
+             onQRInvalid: (() -> Void)?) {
             self.onCallback = onCallback
             self.onLoaded = onLoaded
             self.onFailed = onFailed
             self.onNavigate = onNavigate
             self.onProbe = onProbe
             self.onQRRect = onQRRect
+            self.onQRInvalid = onQRInvalid
         }
 
         // MARK: 回调捕获（三层保险）
@@ -582,10 +566,23 @@ struct QQWebView: UIViewRepresentable {
                   let w = (r["w"] as? NSNumber)?.doubleValue,
                   let h = (r["h"] as? NSNumber)?.doubleValue,
                   w > 20, h > 20
-            else { return false }
+            else {
+                // 位置没量到也先把"失效"判了：那时候页面通常只剩一个失效提示
+                reportInvalid(obj)
+                return false
+            }
             let scrollY = (obj["scrollY"] as? NSNumber)?.doubleValue ?? 0
+            reportInvalid(obj)
             onQRRect?(CGRect(x: x, y: y + scrollY, width: w, height: h))
             return true
+        }
+
+        /// 页面自己说码失效了吗（`#qr_invalid` 显示，或 tips 里出现"失效/过期"）
+        private func reportInvalid(_ obj: [String: Any]) {
+            let shown = (obj["invalidShown"] as? Bool) ?? false
+            let tips = (obj["tips"] as? String) ?? ""
+            let says = shown || tips.contains("失效") || tips.contains("过期")
+            if says { onQRInvalid?() }
         }
 
         func webView(_ webView: WKWebView,
