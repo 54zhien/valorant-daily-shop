@@ -36,6 +36,16 @@ struct QQLoginView: View {
     @State private var watchdogReloads = 0
     /// 网页是否已经加载完（didFinish）。没加载完的重载只会让它更慢。
     @State private var pageLoaded = false
+    /// 二维码要不要显示（控制淡入）。
+    ///
+    /// 单独一个状态、而不是直接用 `qrRect != nil`，是为了**把几何和透明度拆开**：
+    ///
+    ///   1. `qrRect` 先赋值 -> scale/offset 瞬时算好（不带动画，不会滑）
+    ///   2. 下一帧再把 `qrVisible` 置真 -> 只对 opacity 做动画 -> 渐显
+    ///
+    /// 用一个状态的话，SwiftUI 会在同一次事务里同时动画几何和透明度，
+    /// 用户看到的就是二维码从角落滑上来 —— 那个坑注释里已经记着了。
+    @State private var qrVisible = false
 
 
     /// 二维码卡片：和微信那页共用同一组 token
@@ -110,19 +120,30 @@ struct QQLoginView: View {
 
             webLayer
                 .clipShape(RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous))
+                // ★ 淡入只作用在**透明度**上。
+                //   几何（scale/offset）早在 onQRRect 里瞬时到位了 ——
+                //   两者分开，才既有渐显、又不会看到整页从角落滑进来。
+                .opacity(qrVisible ? 1 : 0)
 
-            // 还没量到二维码位置（或者入口页都还没回来）
-            if qrRect == nil || url == nil {
-                VStack(spacing: 10) {
-                    ProgressView().controlSize(.large)
-                    Text("正在准备二维码…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if !qrVisible {
+                loadingOverlay
+                    .transition(.opacity)
             }
         }
         .frame(width: Self.qrSide, height: Self.qrSide)
         .contentShape(RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous))
+        // 二维码位置量到之后淡入。
+        //
+        // 为什么放在这里而不是 onQRRect 里：onChange 是在这次更新**提交之后**
+        // 才触发的，那时 scale/offset 已经坐实。此刻再 withAnimation 改 qrVisible，
+        // 动到的就只有 opacity（和加载层的 transition），几何一点都不会被带上 ——
+        // 否则会看到二维码从角落滑上来。
+        .onChange(of: qrRect) { _, new in
+            guard new != nil, !qrVisible else { return }
+            withAnimation(.easeOut(duration: 0.38)) {
+                qrVisible = true
+            }
+        }
         .onTapGesture {
             // 码失效了：点一下就换一张（和微信页一致）
             if case .failed = stage {
@@ -130,6 +151,30 @@ struct QQLoginView: View {
                 stage = .loading
             }
         }
+    }
+
+    /// 加载态：**撑满整张卡片**再居中。
+    ///
+    /// 之前只放了个 VStack 在 ZStack 里。ZStack 默认居中是没错，
+    /// 但那是「按 VStack 的自然尺寸居中」—— 一旦外层还有别的子视图参与
+    /// 尺寸计算，视觉上就会偏。给它 maxWidth/maxHeight 两个 infinity，
+    /// 才是稳稳地在卡片正中。
+    private var loadingOverlay: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.large)
+            Text(loadingText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 加载时说什么。分两段，别让用户对着「正在准备」等太久还不知道在等什么。
+    private var loadingText: String {
+        if url == nil { return "正在准备二维码…" }
+        return "正在加载登录页…"
     }
 
     /// 把二维码放大到正好装满卡片：按**量到的**尺寸算，不猜页面的码有多大
@@ -162,6 +207,10 @@ struct QQLoginView: View {
                               // ⚠️ 这里**不能用 withAnimation**：量到位置的那一刻如果带动画，
                               //    整个网页会从原来的偏移"滑"到目标位置 —— 用户看到的就是
                               //    二维码从角落滑上来的那一下。直接赋值，一次到位。
+                              //
+                              //    淡入由下面的 .onChange(of: qrRect) 负责 ——
+                              //    onChange 在更新**已提交之后**才触发，所以那时几何已经坐实了，
+                              //    再改 opacity 就只是纯透明度动画，不会连带几何。
                               if qrRect != rect { qrRect = rect }
                           })
                 .frame(width: Self.pageSize.width, height: Self.pageSize.height)
@@ -225,6 +274,9 @@ struct QQLoginView: View {
     private func prepare(attempt: Int = 0) async {
         url = nil
         qrRect = nil
+        // 换码时先把旧的收起来（瞬时，不要动画）——
+        // 否则新码出来时是从"上一张已经显示着"的状态往下走，淡入就看不出来了
+        qrVisible = false
         pageLoaded = false
         watchdogReloads = 0
         stage = .loading
