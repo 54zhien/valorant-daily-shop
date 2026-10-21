@@ -1,4 +1,4 @@
-# XcodeGen 工程描述。装了 xcodegen 之后在 val-shop-ios/ 下执行：
+﻿# XcodeGen 工程描述。装了 xcodegen 之后在 val-shop-ios/ 下执行：
 #   xcodegen generate
 #   open ValPeek.xcodeproj
 #
@@ -35,7 +35,7 @@ settings:
     # iOS 27 会被移除）。Info.plist 里已经刻意不写。
 
     # ---- 资源 ----
-    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ASSETCATALOG_COMPILER_APPICON_NAME: ValPeek
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
 
@@ -55,6 +55,10 @@ targets:
           # 自检/校验脚本是开发工具，不该进 App 包
           - "*.py"
       - path: App/Assets.xcassets
+      # 图标走 Icon Composer 文档（平面层 + icon.json），构建时由 actool 编译
+      - path: Icon/ValPeek.icon
+        type: file
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: ValPeek
@@ -69,3 +73,4 @@ targets:
     dependencies:
       - package: ZhangwaKit
         product: ZhangwaKit
+
