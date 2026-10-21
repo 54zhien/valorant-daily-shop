@@ -100,7 +100,7 @@ with zipfile.ZipFile(ipa) as z:
     ac = [n for n in names if "Assets.car" in n]
     check(len(ac) > 0, "Assets.car 存在（图标层 + 品牌色都已编译）", "没有 Assets.car")
     if ac:
-        print(f"       Assets.car {len(z.read(ac))//1024} KB")
+        print(f"       Assets.car {len(z.read(ac[0]))//1024} KB")
 
     print()
     print("[可执行文件]")
