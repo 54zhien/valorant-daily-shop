@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import BackgroundTasks
 
 // ============================================================================
@@ -15,13 +15,13 @@ import BackgroundTasks
 //  后台 App 刷新开关等）。所以它是**额外一层保险**，不能替代主路径。
 //  两条都留着：打开 App 时一定会续，后台刷新是兜底。
 //
-//  注册必须在启动完成前做完，所以挂在 ZhangwaShopApp 的 init 里。
+//  注册必须在启动完成前做完，所以挂在 ValPeekApp 的 init 里。
 // ============================================================================
 
 enum BackgroundRenewal {
 
     /// 必须和 Info.plist 的 BGTaskSchedulerPermittedIdentifiers 完全一致
-    static let taskID = "com.zhien.zhangwashop.renew"
+    static let taskID = "com.imzhien.valpeek.renew"
 
     /// App 启动时调一次：把任务注册上，并排下一次。
     static func register(model: AppModel) {

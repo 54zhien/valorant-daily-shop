@@ -1,7 +1,7 @@
-import SwiftUI
+﻿import SwiftUI
 
 @main
-struct ZhangwaShopApp: App {
+struct ValPeekApp: App {
     @State private var model: AppModel
 
     init() {

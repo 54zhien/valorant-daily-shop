@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
-	<string>每日商店</string>
+	<string>ValPeek</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -47,7 +47,7 @@
 	-->
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.zhien.zhangwashop.renew</string>
+		<string>com.imzhien.valpeek.renew</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

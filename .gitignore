@@ -51,3 +51,10 @@ desktop.ini
 # 抓包分析产物（含真实登录态）
 val-shop/capture/_dump/
 val-shop/capture/frida-server-*
+
+# 图标管线的中间产物：跑 node Icon/gen.mjs && node Icon/render.mjs 就有，
+# 仓库里只留终稿（App/Assets.xcassets 三张 PNG + Icon/preview/）
+val-shop-ios/Icon/out/
+
+# 上一轮图标草稿（正式管线已搬到 val-shop-ios/Icon/）
+/work/icon/

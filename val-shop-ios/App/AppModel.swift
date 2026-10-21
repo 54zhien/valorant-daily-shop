@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import Observation
 import ZhangwaKit
 
@@ -441,7 +441,7 @@ final class AppModel {
 
     /// 自签装的 App 没有 Xcode 控制台，所以走「文件」App：
     /// Info.plist 里开了 UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace，
-    /// AirDrop 过来的文件直接丢进「我的 iPhone → 每日商店」，然后点一下就行。
+    /// AirDrop 过来的文件直接丢进「我的 iPhone → ValPeek」，然后点一下就行。
     func importFromAppFolder() async {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let files = (try? FileManager.default.contentsOfDirectory(
@@ -454,7 +454,7 @@ final class AppModel {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
         guard !candidates.isEmpty else {
-            push("App 文件夹是空的。把 mval_session.json / mval_capture.log 放进「文件」App 的「我的 iPhone → 每日商店」再试。")
+            push("App 文件夹是空的。把 mval_session.json / mval_capture.log 放进「文件」App 的「我的 iPhone → ValPeek」再试。")
             return
         }
 
@@ -467,7 +467,7 @@ final class AppModel {
     /// 自签环境排错全靠这个：把状态、归一化结果、原始 JSON、日志全导出来
     var diagnostics: String {
         var out: [String] = []
-        out.append("=== 每日商店诊断 ===")
+        out.append("=== ValPeek 诊断 ===")
         out.append("时间: \(Self.stamp.string(from: Date()))")
         out.append("App 版本: \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))")
         out.append("")

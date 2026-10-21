@@ -1,0 +1,15 @@
+图标改成分层素材 + icon.json（玻璃交给系统）+ 工程更名 ValPeek
+
+图标（val-shop-ios/Icon/）：
+- ValPeek.icon：Assets 只放纯 alpha 层（取景环 glass:true、V 实色 glass:false），
+  底色 fill / translucency / shadow 全在 icon.json —— 对齐 apple.icon 示例的格式，
+  不再把玻璃、渐变、投影烤进图里
+- gen.mjs：三个候选（CONCEPT=a 斜卡 / b 取景环 / c 单 V），默认 b；一次生成
+  alpha 层、icon.json、平面兜底稿、评审稿
+- render.mjs：本机 Chrome headless 栅格化 1024；finalize.py：压平 RGB、装 xcassets、出两张对照表
+- Assets.xcassets 三张 1024 降级为平面兜底（方形、无 alpha），不假装是系统渲染
+- selfcheck：层里出现整块底色 / 渐变 / 滤镜即 FAIL；三张图的尺寸、颜色类型、互不相同
+
+工程：
+- ZhangwaShopApp.swift → ValPeekApp.swift，target / scheme / 产物名统一成 ValPeek
+- README 新增图标小节：为什么是分层素材、怎么换方案、.icon 还没接进构建

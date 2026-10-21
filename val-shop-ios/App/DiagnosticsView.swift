@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import ZhangwaKit
 
 /// 诊断台 —— 排障用的一切。
@@ -120,7 +120,7 @@ struct DiagnosticsView: View {
                 Label("从「文件」里选", systemImage: "folder")
             }
             ShareLink(item: model.diagnostics,
-                      subject: Text("每日商店诊断信息"),
+                      subject: Text("ValPeek 诊断信息"),
                       message: Text("App \(Bundle.main.shortVersion) (\(Bundle.main.buildNumber))")) {
                 Label("导出诊断信息", systemImage: "square.and.arrow.up")
             }

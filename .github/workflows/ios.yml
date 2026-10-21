@@ -1,4 +1,4 @@
-name: Build IPA
+﻿name: Build IPA
 
 # 出未签名 IPA，手机上用自签工具装。
 # 也可以在 Actions 页面手动触发（workflow_dispatch）。
@@ -62,10 +62,10 @@ jobs:
 
     env:
       # 仓库 Settings → Secrets and variables → Actions → Variables 里可覆盖
-      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.zhangwashop' }}
+      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.ValPeek' }}
       ZW_SHOP_PATH: ${{ vars.ZW_SHOP_PATH }}
       ZW_SHOP_BODY: ${{ vars.ZW_SHOP_BODY }}
-      IPA_PATH: val-shop-ios/ZhangwaShop-unsigned.ipa
+      IPA_PATH: val-shop-ios/ValPeek-unsigned.ipa
 
     steps:
       - uses: actions/checkout@v5
@@ -122,8 +122,8 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project ZhangwaShop.xcodeproj \
-            -scheme ZhangwaShop \
+            -project ValPeek.xcodeproj \
+            -scheme ValPeek \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
@@ -140,21 +140,21 @@ jobs:
         working-directory: val-shop-ios
         run: |
           set -euo pipefail
-          APP_PATH="build/Build/Products/Release-iphoneos/ZhangwaShop.app"
+          APP_PATH="build/Build/Products/Release-iphoneos/ValPeek.app"
           test -d "$APP_PATH"
 
-          rm -rf Payload "ZhangwaShop-unsigned.ipa"
+          rm -rf Payload "ValPeek-unsigned.ipa"
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
 
           # 自签工具会自己塞证书，所以这里确保没有残留签名
-          rm -rf Payload/ZhangwaShop.app/_CodeSignature
-          rm -f  Payload/ZhangwaShop.app/embedded.mobileprovision
+          rm -rf Payload/ValPeek.app/_CodeSignature
+          rm -f  Payload/ValPeek.app/embedded.mobileprovision
 
-          zip -qry "ZhangwaShop-unsigned.ipa" Payload
+          zip -qry "ValPeek-unsigned.ipa" Payload
 
           echo "--- 产物 ---"
-          ls -lh ZhangwaShop-unsigned.ipa
+          ls -lh ValPeek-unsigned.ipa
           echo "--- App 里的关键信息 ---"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist"
@@ -163,8 +163,8 @@ jobs:
       - name: 上传 IPA
         uses: actions/upload-artifact@v7
         with:
-          name: ZhangwaShop-unsigned-ipa
-          path: val-shop-ios/ZhangwaShop-unsigned.ipa
+          name: ValPeek-unsigned-ipa
+          path: val-shop-ios/ValPeek-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
 
@@ -184,7 +184,7 @@ jobs:
           - 商店接口路径: \`${ZW_SHOP_PATH:-（空，装好后在 App 里填）}\`
           - 提交: ${GITHUB_SHA:0:7}
 
-          直链：\`https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ZhangwaShop-unsigned.ipa\`
+          直链：\`https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ValPeek-unsigned.ipa\`
           EOF
           )
 
@@ -206,7 +206,7 @@ jobs:
             echo "- Bundle ID: \`${BUNDLE_ID}\`"
             echo "- 商店接口路径: \`${ZW_SHOP_PATH:-（空，装好后在 App 里填）}\`"
             echo ""
-            echo "**手机直接下：** https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ZhangwaShop-unsigned.ipa"
+            echo "**手机直接下：** https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/ValPeek-unsigned.ipa"
             echo ""
             echo "> 未签名 IPA，用手机上的自签工具签名后安装。"
           } >> "$GITHUB_STEP_SUMMARY"

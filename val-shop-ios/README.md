@@ -37,7 +37,7 @@ val-shop-ios/
 │   ├─ Sources/ZhangwaKit/        协议层（Sendable 模型 + @MainActor client）
 │   └─ Tests/ZhangwaKitTests/     Swift Testing（@Suite / @Test / #expect）
 ├─ App/                           ⚠️ 需在 Xcode 26 上编译（本机无 SwiftUI）
-│   ├─ ZhangwaShopApp.swift       @main + TabView（两个页签）+ 登录 sheet
+│   ├─ ValPeekApp.swift       @main + TabView（两个页签）+ 登录 sheet
 │   ├─ DesignSystem.swift         ★ 全项目 token：色板 / 圆角 / 字阶 / 玻璃块 / 列表零件
 │   ├─ LiquidGlass.swift          ★ 全项目唯一直接调 iOS 26 玻璃 API 的文件 + 品牌底
 │   ├─ AppModel.swift             @Observable + @MainActor
@@ -52,9 +52,8 @@ val-shop-ios/
 │   ├─ RolePickerView.swift       多角色切换
 │   ├─ Theme.swift                模型 → 视图的取值助手（品质色、价格千位、会话健康度）
 │   ├─ BundledConfig.plist        ★ CI 用它注入商店接口路径
-│   ├─ Assets.xcassets/           AppIcon(1024) / AccentColor
-│   ├─ make_icon.py               图标生成脚本（零依赖，可重跑）
-│   ├─ selfcheck.py               工程自检（YAML/plist/图标/**Swift 语法**/设计资产）
+│   ├─ Assets.xcassets/           AppIcon（浅色/深色/着色三张 1024，无 alpha）/ AccentColor
+│   ├─ selfcheck.py               工程自检（YAML/plist/图标三件套/.icon 包/**Swift 语法**/设计资产）
 │   └─ Localizable.xcstrings      String Catalog
 ├─ design/                        ★ 设计预览台（视觉事实来源）
 │   ├─ preview.html               单文件、零依赖：七个界面 + token 板，可点可翻
@@ -62,6 +61,13 @@ val-shop-ios/
 ├─ probe/                         ★ 本机能跑的两个验算台（不参与 App target）
 │   ├─ isolation_probe.swift      并发隔离语义（MainActor-by-default 下 Shape 怎么写）
 │   └─ geometry_probe.swift       切角/品质钻/斜纹/网格的路径点对账
+├─ Icon/                          ★ 图标（alpha 层 + icon.json，玻璃由系统渲染）
+│   ├─ gen.mjs                    几何 → alpha 层 SVG + icon.json + 评审稿（CONCEPT=a/b/c）
+│   ├─ render.mjs                 Chrome headless 栅格化 1024（评审稿 / 兜底稿）
+│   ├─ finalize.py                压平 RGB + 装 xcassets + 两张对照表
+│   ├─ v-polygon.json             官方 V 标顶点（对 179px 原始标逐行采样得来）
+│   ├─ ValPeek.icon/              Icon Composer 包：Assets/ 纯 alpha 层 + icon.json
+│   └─ preview/                   concepts.png（挑方案）/ contact-sheet.png（验收）
 └─ project.yml                    XcodeGen
 ```
 
@@ -90,14 +96,14 @@ Actions 自动跑两个 job：
 | `test` | `cd ZhangwaKit && swift test` —— 17 个用例，不联网不需要账号 | ~1 分钟 |
 | `build` | XcodeGen 生成工程 → `xcodebuild` 出**未签名** app → 打包 IPA | ~5 分钟 |
 
-构建完成后到 **Actions → 对应 run → Artifacts** 下载 `ZhangwaShop-unsigned-ipa`。
+构建完成后到 **Actions → 对应 run → Artifacts** 下载 `ValPeek-unsigned-ipa`。
 
 ### 从手机上下载（推荐）
 
 每次 push 到 `main`，CI 会把 IPA 挂到一个滚动 Release 上，给你一条**能直接点的直链**：
 
 ```
-https://github.com/54zhien/valorant-daily-shop/releases/download/latest/ZhangwaShop-unsigned.ipa
+https://github.com/54zhien/valorant-daily-shop/releases/download/latest/ValPeek-unsigned.ipa
 ```
 
 Safari 里点开 → 分享 → 丢给 ESign / 全能签。不用登录 GitHub、不用去 Actions 翻 Artifacts
@@ -111,9 +117,9 @@ Safari 里点开 → 分享 → 丢给 ESign / 全能签。不用登录 GitHub�
 
 ```bash
 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""   # 完全关签名
-rm -rf Payload/ZhangwaShop.app/_CodeSignature                            # 清残留签名
-rm -f  Payload/ZhangwaShop.app/embedded.mobileprovision                  # 清描述文件
-zip -qry ZhangwaShop-unsigned.ipa Payload                                # Payload/ 为根的 zip
+rm -rf Payload/ValPeek.app/_CodeSignature                            # 清残留签名
+rm -f  Payload/ValPeek.app/embedded.mobileprovision                  # 清描述文件
+zip -qry ValPeek-unsigned.ipa Payload                                # Payload/ 为根的 zip
 ```
 
 清不干净的话，ESign / 全能签这类工具会报「签名校验失败」或者直接装不上。
@@ -127,7 +133,7 @@ zip -qry ZhangwaShop-unsigned.ipa Payload                                # Paylo
 | 坑 | 说明 |
 |---|---|
 | **证书有效期** | 免费 Apple ID 签的 App **7 天**就掉签，要重签。付费开发者账号（$99/年）签的是 **1 年** |
-| **Bundle ID** | App 里默认 `com.example.zhangwashop`。如果你的证书不是通配符，在仓库 **Variables** 里建 `BUNDLE_ID` 改成和你证书匹配的，CI 会自动用它 |
+| **Bundle ID** | App 里默认 `com.example.ValPeek`。如果你的证书不是通配符，在仓库 **Variables** 里建 `BUNDLE_ID` 改成和你证书匹配的，CI 会自动用它 |
 | **重装会清数据** | 自签重装如果 Bundle ID 变了，容器会被清空 —— 登录态要重新导入。所以下面那个 `ZW_SHOP_PATH` 变量能省不少事 |
 | **UDID** | 免费/个人证书要设备 UDID 在描述文件里，重装后 UDID 一般不变，不用管 |
 
@@ -386,6 +392,48 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 > `OptionSet` 的一致性会被推成 MainActor 隔离、在 `nonisolated func path(in:)` 里用不了。
 > 自定义 shape 之前先跑一遍它。
 
+### 图标（`Icon/`）：交素材和配置，玻璃交给系统
+
+```powershell
+node   val-shop-ios/Icon/gen.mjs        # 几何 → alpha 层 SVG + icon.json + 评审稿
+node   val-shop-ios/Icon/render.mjs     # SVG → 1024 PNG（本机 Chrome headless）
+python val-shop-ios/Icon/finalize.py    # 出对照表；顺手把兜底稿装进 xcassets
+CONCEPT=c node val-shop-ios/Icon/gen.mjs   # 换方案（a 斜卡 / b 取景环 / c 单 V）
+```
+
+**先纠正一个观念**（`work/icon/apple.icon` 那个示例里摆着的）：iOS 26 的图标不是一张画好的画，
+是**分层素材 + 一份配置**：
+
+- 一层 = 透明画布 + 形状本身。示例里的 `凪.svg` 就一条 `fill="#FFFFFF"` 的 path，
+  没有底色、没有玻璃、没有阴影。
+- 底色 `fill`、玻璃 `glass`、通透 `translucency`、投影 `shadow` 全写在 `icon.json` 里，
+  由系统渲染。**把玻璃、高光、投影烤进图里，等于让系统再叠一遍。**
+
+所以 `Icon/ValPeek.icon/` 里只有两样东西：`Assets/*.svg`（纯 alpha 层）+ `icon.json`（参数）。
+`selfcheck.py` 会拦「层里出现整块底色 / 渐变 / 滤镜」，防止哪天又有人把玻璃烤回去。
+
+**画什么**：一个磨砂玻璃环 + 官方 V 标。环 = 「取景 / 往里看」，对得上 ValPeek 这个名字；
+V 用实色品牌红（`glass:false`），不被玻璃洗淡。另两个候选在 `Icon/preview/concepts.png`：
+A 斜卡（对应每日翻牌那张卡）、C 单 V（最省事）。换方案只改一个环境变量。
+
+**为什么 V 标是两块、不是三块**：官方 V = 左缎带（中间一个折角）+ 右臂。
+早先把折角切开、三段各自描边，接缝处就多出三道白线，缩到 60pt 变成三条毛边。
+现在按共边把左缎带并成一条 7 顶点轮廓（见 `gen.mjs` 顶部）。
+
+**兜底 PNG 是另一回事**（`Assets.xcassets` 那三张）：系统外的构建拿不到 `.icon`，
+只能吃 PNG，所以 `finalize.py` 会出一版**平面**稿 —— 底色 + 环（实色）+ V，
+**不画玻璃、不画投影**，免得和真玻璃效果对不上。三张 1024、方形、**无 alpha**
+（App Store 硬要求，`selfcheck.py` 读 IHDR 验）。
+
+**`.icon` 还没接进构建**：本机没有 Xcode，验不了 `actool` 认不认这个手写包。
+在 macOS 上要接的话：把 `Icon/ValPeek.icon` 拖进 target（或 `project.yml` 里加进 sources），
+App Icon 指向它，然后 `xcodebuild` 跑一遍看 `actool` 有没有报错；跑通了再把
+`ASSETCATALOG_COMPILER_APPICON_NAME` 挪过去，PNG 留作备份。
+
+> 出图后看两张：`Icon/preview/concepts.png`（挑方案）、`Icon/preview/contact-sheet.png`
+> （三外观 × 96/64/40/29px + 浅色壁纸）。1024 好看不算数，29px 认得出才算。
+> 注意：这两张里的玻璃是**手画的模拟**，真机上是系统渲染，会有出入。
+
 ## 五、对照「最新 Apple 要求」
 
 | 要求 | 实现 |
@@ -404,7 +452,7 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 | 并发正确性 | 模型全 `Sendable`，`ZhangwaClient` 显式 `@MainActor`，JSON 工具标 `nonisolated` |
 | Observation | `@Observable` + `@Environment(AppModel.self)`，无 `ObservableObject`/`@Published` |
 | Swift Testing | `@Suite` / `@Test` / `#expect` / `#require` / 参数化用例，无 XCTest |
-| App Icon | `make_icon.py` 生成的 1024 单尺寸；要上架可再用 Icon Composer 导出 `.icon` |
+| App Icon | `Icon/ValPeek.icon`：纯 alpha 分层素材（玻璃环 + V）+ `icon.json`（fill/glass/translucency/shadow），玻璃由系统渲染；`Assets.xcassets` 里三张 1024 是**平面兜底**（无 alpha）；两张对照表在 `Icon/preview/` |
 | 无障碍 | 卡片 `.accessibilityElement(children: .combine)` + 中文标签与提示；引信条报 `accessibilityValue`（HIG Accessibility） |
 | Dynamic Type | 语义字号；卡片内文字给 `lineLimit` + `minimumScaleFactor`，Dynamic Type 拉到最大时不会撑破卡 |
 | 减弱动态效果 | `accessibilityReduceMotion` 打开时，翻牌从 3D 旋转降级成交叉淡入 |
@@ -420,7 +468,7 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 # ① 协议层：17 个用例，不联网不需要账号
 cd val-shop-ios/ZhangwaKit && swift test
 
-# ② 工程自检：YAML / plist / 图标 / Swift 语法 / 设计资产（Windows 上就能跑）
+# ② 工程自检：YAML / plist / 图标三件套 / .icon 包 / Swift 语法 / 设计资产（Windows 上就能跑）
 python val-shop-ios/App/selfcheck.py
 #   └ 里面有一项会调 swiftc -parse 扫全部 App/*.swift（语法层，不需要 Apple SDK）
 
@@ -430,8 +478,12 @@ python val-shop/capture/lint_swift_shell_damage.py
 # ④ 设计预览台（改 UI 先看这个）
 powershell -File val-shop-ios/design/shoot.ps1
 
-# ⑤ 生成工程（仅 macOS）
-cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
+# ⑤ 图标：alpha 层 + 配置 → 评审稿 → 兜底 PNG（改图标只跑这三行）
+node val-shop-ios/Icon/gen.mjs; node val-shop-ios/Icon/render.mjs; python val-shop-ios/Icon/finalize.py
+#   └ 挑方案：CONCEPT=a|b|c node val-shop-ios/Icon/gen.mjs，再跑后两行
+
+# ⑥ 生成工程（仅 macOS）
+cd val-shop-ios && xcodegen generate && open ValPeek.xcodeproj
 ```
 
 **本机能验什么、不能验什么，说清楚**：
@@ -442,6 +494,9 @@ cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
 | 并发隔离语义 | ✅ `probe/isolation_probe.swift` | MainActor-by-default 下哪些写法会炸 |
 | 形状几何 | ✅ `probe/geometry_probe.swift` | 切角/钻标/斜纹的路径点逐点对账 |
 | 协议层逻辑 | ✅ `swift test` | ZhangwaKit 那 17 个用例 |
+| 图标上架合规 | ✅ `selfcheck.py` 读 IHDR | 1024×1024、颜色类型 2（无 alpha）、三张互不相同 |
+| 图标层是否「纯」 | ✅ `selfcheck.py` 查层文件 | 层里不许出现整块底色 / 渐变 / 滤镜（这些该系统干） |
+| **Icon Composer 包** | ⚠️ 只验结构 | `icon.json` 能解析、fill/glass/translucency/shadow 齐全、层引用对得上；`actool` 认不认要 macOS |
 | **SwiftUI 类型检查** | ❌ | 没有 Apple SDK，只能等 CI（macOS + Xcode 26） |
 | **运行时外观** | ❌ | 要装到手机上才看得到 |
 
@@ -456,6 +511,7 @@ cd val-shop-ios && xcodegen generate && open ZhangwaShop.xcodeproj
 | `App/` SwiftUI 层（本次大改后） | ⏳ 本机只做了**语法 + 几何 + 隔离语义**三层验证；类型检查要等 CI |
 | Liquid Glass API | ✅ 编译通过，且二进制里确认链上了 `glassEffect` / `GlassEffectContainer` / `tabBarMinimizeBehavior` / `scrollEdgeEffectStyle` |
 | 未签名 IPA | ✅ 产出并校验：Payload 结构正确、无 `_CodeSignature` 残留、`MinimumOSVersion 26.0`、arm64、图标已编译、`BundledConfig.plist` 已注入 |
+| App 图标 | ✅ `Icon/ValPeek.icon` 是「纯 alpha 层 + icon.json」，结构自检通过（层里无底色/渐变/滤镜）；兜底 PNG 三张 1024 无 alpha 也验过。⚠️ 没在 Icon Composer 里打开过、没走 `actool`，所以 `.icon` 还没接进构建；对照表里的玻璃是手画模拟，不是系统渲染 |
 | 滚动 Release 直链 | ✅ 实测 HTTP 206 可下载，返回 PKZIP |
 | 真机运行 | ⚠️ 没跑过 —— 需要你自签装到手机上才能确认运行时行为 |
 
