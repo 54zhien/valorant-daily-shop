@@ -80,8 +80,17 @@ with zipfile.ZipFile(ipa) as z:
 
     print()
     print("[图标 / 资源]")
-    icons = [n for n in names if "AppIcon" in n and n.endswith(".png")]
+    # 图标名不再写死 AppIcon：Icon Composer 的 .icon 编出来叫 <IconName>60x60@2x.png，
+    # 以 Info.plist 里登记的为准（CFBundleIcons → CFBundleIconFiles）。
+    primary = info.get("CFBundleIcons", {}).get("CFBundlePrimaryIcon", {})
+    icon_files = primary.get("CFBundleIconFiles", [])
+    icon_name = primary.get("CFBundleIconName")
+    icons = [n for n in names
+             if n.endswith(".png") and any(f in pathlib.Path(n).name for f in icon_files)] \
+        if icon_files else [n for n in names if "AppIcon" in n and n.endswith(".png")]
     check(len(icons) > 0, f"图标已编译进包（{len(icons)} 个尺寸变体）", "没有图标")
+    if icon_name:
+        print(f"       CFBundleIconName = {icon_name}（图标来源）")
     if icons:
         biggest = max(icons, key=lambda n: len(z.read(n)))
         data = z.read(biggest)
@@ -89,7 +98,9 @@ with zipfile.ZipFile(ipa) as z:
         dims = f"{size[0]}x{size[1]}" if size else "?"
         print(f"       最大: {pathlib.Path(biggest).name}  {dims}  {len(data)//1024} KB")
     ac = [n for n in names if "Assets.car" in n]
-    check(len(ac) > 0, "Assets.car 存在（AccentColor 等已编译）", "没有 Assets.car")
+    check(len(ac) > 0, "Assets.car 存在（图标层 + 品牌色都已编译）", "没有 Assets.car")
+    if ac:
+        print(f"       Assets.car {len(z.read(ac))//1024} KB")
 
     print()
     print("[可执行文件]")
