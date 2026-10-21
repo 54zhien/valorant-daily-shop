@@ -48,7 +48,7 @@ struct ShopView: View {
             }
             .background(Color(.systemGroupedBackground))
             .zwScrollEdge(.all)
-            .navigationTitle("每日商店")
+            .navigationTitle("皮肤商店")
             .navigationBarTitleDisplayMode(.inline)
             // 下拉重读：系统标准手势，不需要额外的按钮
             .refreshable {
@@ -66,46 +66,54 @@ struct ShopView: View {
 
     // MARK: - 身份卡
 
+    /// 身份条：卡面居中放大 → 游戏 ID → 段位。
+    ///
+    /// 三条设计决定，都是用户明确提的：
+    ///   1. **不要液态玻璃** —— 直接坐在页面底色上，不用 `zwGlassCard()`
+    ///   2. **不要状态点（那个菱形）和「已登录」字样** ——
+    ///      正常使用时这两个信息没有价值；真出问题时上面的 alertInfo 会说清楚
+    ///   3. **竖向居中排布** —— 原来是横着的一行，卡面只有 38pt；
+    ///      现在 76pt 居中，名字和段位各占一行
+    ///
+    /// 多角色时才可点（一个人一个号的时候不该有入口）。
     private var identityCard: some View {
-        HStack(spacing: 12) {
-            avatar
+        Button {
+            if model.canSwitchRole { showRolePicker = true }
+        } label: {
+            VStack(spacing: 9) {
+                avatar
 
-            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(model.displayName)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .minimumScaleFactor(0.7)
                     if model.canSwitchRole {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                 }
+
                 Text(model.displaySubtitle)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 6)
-
-            statusChip
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .contentShape(.rect)
         }
-        .padding(16)
-        // 液态玻璃（系统原生 `glassEffect`，见 LiquidGlass.swift）；圆角比内容卡更大
-        .zwGlassCard()
-        // 多角色时才可点 —— 一个人一个号的时候不该有入口
-        .contentShape(RoundedRectangle(cornerRadius: ZW.radiusGlass, style: .continuous))
-        .onTapGesture {
-            if model.canSwitchRole { showRolePicker = true }
-        }
-        .accessibilityElement(children: .contain)
+        .buttonStyle(.plain)
+        .disabled(!model.canSwitchRole)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(model.displayName)，\(model.displaySubtitle)")
     }
 
+    /// 卡面。放大到 76pt、圆形裁切、居中 —— 整条信息栏的视觉重心。
     private var avatar: some View {
         ZStack {
-            Color(.tertiarySystemFill)
+            Circle().fill(Color(.tertiarySystemFill))
             if let icon = model.userRole?.icon, !icon.isEmpty, let url = URL(string: icon) {
                 CachedImage(url: url, contentMode: .fill) { fallbackInitial }
             } else {
@@ -113,27 +121,14 @@ struct ShopView: View {
             }
         }
         .frame(width: ZW.avatar, height: ZW.avatar)
-        .clipShape(RoundedRectangle(cornerRadius: ZW.radiusControl, style: .continuous))
+        .clipShape(.circle)
+        .overlay(Circle().stroke(.primary.opacity(0.08), lineWidth: 0.5))
     }
 
     private var fallbackInitial: some View {
         Text(String(model.displayName.prefix(1)))
-            .font(.subheadline.weight(.bold))
+            .font(.title2.weight(.bold))
             .foregroundStyle(model.hasSession ? Color.primary : Color.secondary)
-    }
-
-    /// 状态只说人话：能用 / 该重新登录
-    private var statusChip: some View {
-        HStack(spacing: 6) {
-            ZWDiamond()
-                .fill(model.sessionHealth.tint)
-                .frame(width: 7, height: 7)
-            Text(model.sessionHealth.text)
-                .font(.caption)
-                .foregroundStyle(model.sessionHealth.tint)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.sessionHealth.text)
     }
 
     // MARK: - 只在出事时出现的提示

@@ -10,6 +10,13 @@ import ZhangwaKit
 ///   1. 我现在登着没？
 ///   2. 没登 / 掉线了怎么办？（扫码，一步）
 ///   3. 换号 / 退出
+///
+/// ## 关于「不写任何说明文字」
+///
+/// 每一节下面原来都有一句 footer（「扫一次就行…」「只用来读你自己账号…」）。
+/// 全部去掉了 —— 这些信息对**第一次用**的人有点用，但对天天开的人只是噪音，
+/// 而且按钮标题本身已经说清楚了（「QQ 扫码登录」不需要再解释一遍）。
+/// 真需要解释的东西（比如扫码为什么安全）放在扫码页里，进来才看得到。
 struct ProfileView: View {
 
     @Environment(AppModel.self) private var model
@@ -35,10 +42,6 @@ struct ProfileView: View {
                     } label: {
                         Label("微信扫码登录", systemImage: "qrcode")
                     }
-                } header: {
-                    Text("登录")
-                } footer: {
-                    Text("扫一次就行。之后会自动续期，不用每次扫。")
                 }
 
                 if model.canSwitchRole {
@@ -59,19 +62,25 @@ struct ProfileView: View {
                     .disabled(!model.hasSession)
                 }
 
-                Section {
+                Section("关于") {
                     LabeledContent("版本", value: "\(Bundle.main.shortVersion) (\(AppModel.buildStamp))")
+                        // 排障入口藏在这里：**长按版本号**才进诊断台。
+                        //
+                        // 为什么不明着放一行：诊断台是开发阶段的产物（选接口、验登录用的），
+                        // 现在两个真实故障场景（读不到商店 / 登录快过期）商店页顶上那行
+                        // 提示已经覆盖了，正常用户永远不需要它。
+                        //
+                        // 为什么还留着：真出问题时这是唯一能看到内部状态的通道，
+                        // 长按是零成本，删了以后再要就得重写一遍。
+                        // 长按不算"藏功能" —— 它在明处，只是不占版面。
+                        .contextMenu {
+                            Button {
+                                showDiagnostics = true
+                            } label: {
+                                Label("诊断台", systemImage: "stethoscope")
+                            }
+                        }
                     LabeledContent("数据来源", value: "掌上无畏契约（同源接口）")
-                    // 排障入口：放在最底下、明明白白一行（长按那种藏法文档不认）
-                    Button {
-                        showDiagnostics = true
-                    } label: {
-                        Label("诊断", systemImage: "stethoscope")
-                    }
-                } header: {
-                    Text("关于")
-                } footer: {
-                    Text("只用来读你自己账号的每日商店。")
                 }
             }
             .navigationTitle("我的")
@@ -103,22 +112,20 @@ struct ProfileView: View {
 
     // MARK: - 账号
 
-    /// 只留一句话：这次是怎么登进来的。头像、段位都不放 ——
-    /// 商店页的账号条上已经有了，这里不重复。
+    /// 只留一句话：这次是怎么登进来的。
+    ///
+    /// 头像、段位都不放 —— 商店页的账号条上已经有了，这里不重复。
+    /// 前面那个菱形状态点也去掉了：它传达的「连接正常/异常」
+    /// 在商店页的提示行里已经写过一遍，这里再放一个纯装饰。反正色弱也分辨不出来。
     private var accountSection: some View {
         Section {
-            HStack(spacing: 8) {
-                ZWDiamond()
-                    .fill(model.sessionHealth.tint)
-                    .frame(width: 8, height: 8)
-                Text(model.loginMethodLabel)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 2)
-            .accessibilityElement(children: .combine)
+            Text(model.loginMethodLabel)
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+                .accessibilityAddTraits(.isStaticText)
         }
     }
 }
