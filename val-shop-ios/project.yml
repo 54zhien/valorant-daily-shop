@@ -52,6 +52,8 @@ targets:
       - path: App
         excludes:
           - Info.plist
+          # 自检/校验脚本是开发工具，不该进 App 包
+          - "*.py"
       - path: App/Assets.xcassets
     settings:
       base:

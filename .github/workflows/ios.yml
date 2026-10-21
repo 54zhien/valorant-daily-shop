@@ -50,6 +50,40 @@ jobs:
         working-directory: val-shop-ios/ZhangwaKit
         run: swift test
 
+      # 探针：把 Icon Composer 包直接丢给 actool，看它认不认这个手写格式。
+      # continue-on-error —— 失败只留日志，不挡 IPA。跑通之后才敢把构建切到 .icon。
+      - name: 试编译 Icon Composer 包（不阻塞构建）
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/icon-probe"
+          mkdir -p "$OUT"
+          echo "=== Icon/ 里有什么 ==="
+          find val-shop-ios/Icon/ValPeek.icon -type f | sort
+
+          echo "=== ① actool 直接吃 .icon 目录 ==="
+          xcrun actool --compile "$OUT" --output-format human-readable-text \
+            --notices --warnings \
+            --app-icon ValPeek \
+            --platform iphoneos --minimum-deployment-target 26.0 \
+            --target-device iphone --target-device ipad \
+            val-shop-ios/Icon/ValPeek.icon 2>&1 | tail -40
+          echo "actool exit=${PIPESTATUS[0]}"
+
+          echo "=== ② 兜底：先拷成 Assets.xcassets 平级的 AppIcon.icon 再试 ==="
+          rm -rf "$RUNNER_TEMP/iconbundle" && mkdir -p "$RUNNER_TEMP/iconbundle"
+          cp -R val-shop-ios/Icon/ValPeek.icon "$RUNNER_TEMP/iconbundle/AppIcon.icon"
+          xcrun actool --compile "$OUT" --output-format human-readable-text \
+            --notices --warnings \
+            --app-icon AppIcon \
+            --platform iphoneos --minimum-deployment-target 26.0 \
+            --target-device iphone --target-device ipad \
+            "$RUNNER_TEMP/iconbundle/AppIcon.icon" 2>&1 | tail -40
+          echo "actool exit=${PIPESTATUS[0]}"
+
+          echo "=== 产物 ==="
+          ls -la "$OUT" || true
+
   # ------------------------------------------------------------------
   # 2) 构建未签名 IPA
   # ------------------------------------------------------------------
