@@ -36,29 +36,20 @@ struct QQLoginView: View {
     @State private var watchdogReloads = 0
     /// 网页是否已经加载完（didFinish）。没加载完的重载只会让它更慢。
     @State private var pageLoaded = false
-    /// 上一次「页面报码失效」的时间，用来防抖
-    @State private var invalidStamp = Date.distantPast
 
-    /// 二维码格子边长：和微信登录同一个数，两页看起来是一套
-    private static let qrSide: CGFloat = 224
+
+    /// 二维码卡片：和微信那页共用同一组 token
+    private static let qrSide = ZW.qrCardSide
     /// 网页用**固定视口**加载 —— 换机型二维码落点也一样，量一次就够
     private static let pageSize = CGSize(width: 390, height: 700)
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Spacer(minLength: 20)
-
-                qrCard
-
-                Text("请使用「QQ」扫一扫")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 14)
-
+            // 只有一张码。提示条、状态条都去掉 —— 和微信那页长得一模一样。
+            VStack {
                 Spacer(minLength: 0)
-
-                statusBar
+                qrCard
+                Spacer(minLength: 0)
             }
             .navigationTitle("QQ 扫码登录")
             .navigationBarTitleDisplayMode(.inline)
@@ -79,13 +70,12 @@ struct QQLoginView: View {
                 }
             }
         }
+        .presentationDetents([.medium])
         .onAppear { wire() }
-        // ⚠️ 以前是「不管三七二十一，90 秒换一张」—— 用户正好在第 89 秒扫码时，
-        //    码在他眼皮底下被换掉了，扫了也白扫。这是不稳的主因。
-        // 现在两头都管：
-        //   · 主要靠页面自己说：探针看到 #qr_invalid 显示 / tips 带"失效""过期" 才换码
-        //     （在 onQRInvalid 里，见 webLayer）
-        //   · 兜底：240 秒还没动静才盲换一次，防止页面压根不报
+        // ⚠️ 这里**只保留一个很长的兜底**。
+        //    上一版曾经用「探针看到 #qr_invalid 就换码」—— 结果那个元素在 QQ 页面上
+        //    一直是 display:block（它靠 opacity/visibility 藏），于是每次探针都判定"失效"，
+        //    二维码被无限重建、页面不停刷新。**别再走那条路**。
         .task(id: reloadToken) {
             try? await Task.sleep(nanoseconds: 240_000_000_000)
             guard !Task.isCancelled else { return }
@@ -145,7 +135,8 @@ struct QQLoginView: View {
     /// 把二维码放大到正好装满卡片：按**量到的**尺寸算，不猜页面的码有多大
     private var webScale: CGFloat {
         guard let r = qrRect, r.width > 1 else { return 1 }
-        return min(1.8, (Self.qrSide - 24) / r.width)
+        // 卡片内四周各留 ZW.qrMargin —— 和微信那页的留白一模一样
+        return min(1.8, (Self.qrSide - ZW.qrMargin * 2) / r.width)
     }
 
     /// WebView 本身：固定视口大小 → 按二维码中心缩放/偏移 → 外面再套 224 的裁切框。
@@ -170,15 +161,6 @@ struct QQLoginView: View {
                           onQRRect: { rect in
                               // 只在真的变了的时候写，避免每帧都触发重绘
                               if qrRect != rect { withAnimation(.easeOut(duration: 0.2)) { qrRect = rect } }
-                          },
-                          onQRInvalid: {
-                              // 页面自己说码失效了才换 —— 不再靠定时器盲换（那样会在
-                              // 用户扫码的瞬间把码换掉）。0.6 秒防抖，避免连续几条探针都触发。
-                              let now = Date()
-                              guard now.timeIntervalSince(invalidStamp) > 0.6 else { return }
-                              invalidStamp = now
-                              reloadToken = UUID()
-                              stage = .loading
                           })
                 .frame(width: Self.pageSize.width, height: Self.pageSize.height)
                 .scaleEffect(webScale, anchor: .topLeading)
@@ -201,25 +183,6 @@ struct QQLoginView: View {
 
     // MARK: - 状态
 
-    private var statusBar: some View {
-        HStack(spacing: 10) {
-            if stage.isBusy {
-                ProgressView().controlSize(.small)
-            } else {
-                ZWDiamond()
-                    .fill(color)
-                    .frame(width: 8, height: 8)
-            }
-            Text(stage.text)
-                .font(.subheadline)
-                .foregroundStyle(color)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, ZW.pad)
-        .padding(.vertical, 12)
-        .background(.bar)
-        .accessibilityElement(children: .combine)
-    }
 
     private var color: Color {
         switch stage {
@@ -352,13 +315,12 @@ struct QQWebView: UIViewRepresentable {
     var onProbe: ((String) -> Void)?
     /// 页面里二维码的位置（CSS px，相对视口）—— 上层据此把整页裁成一张二维码
     var onQRRect: ((CGRect) -> Void)?
-    /// 页面自己说二维码失效了（#qr_invalid 显示 / tips 带"失效""过期"）
-    var onQRInvalid: (() -> Void)?
+
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onCallback: onCallback, onLoaded: onLoaded,
                     onFailed: onFailed, onNavigate: onNavigate, onProbe: onProbe,
-                    onQRRect: onQRRect, onQRInvalid: onQRInvalid)
+                    onQRRect: onQRRect)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -414,7 +376,6 @@ struct QQWebView: UIViewRepresentable {
         let onNavigate: ((URL, Bool) -> Void)?
         let onProbe: ((String) -> Void)?
         let onQRRect: ((CGRect) -> Void)?
-        let onQRInvalid: (() -> Void)?
 
         weak var web: WKWebView?
         var gate = ReloadGate()
@@ -426,15 +387,13 @@ struct QQWebView: UIViewRepresentable {
              onFailed: @escaping (String) -> Void,
              onNavigate: ((URL, Bool) -> Void)?,
              onProbe: ((String) -> Void)?,
-             onQRRect: ((CGRect) -> Void)?,
-             onQRInvalid: (() -> Void)?) {
+             onQRRect: ((CGRect) -> Void)?) {
             self.onCallback = onCallback
             self.onLoaded = onLoaded
             self.onFailed = onFailed
             self.onNavigate = onNavigate
             self.onProbe = onProbe
             self.onQRRect = onQRRect
-            self.onQRInvalid = onQRInvalid
         }
 
         // MARK: 回调捕获（三层保险）
@@ -524,7 +483,6 @@ struct QQWebView: UIViewRepresentable {
               try {
                 var img = document.getElementById('qrimg');
                 var tips = document.getElementById('qrtips');
-                var inv = document.getElementById('qr_invalid');
                 var r = img ? img.getBoundingClientRect() : null;
                 return JSON.stringify({
                   url: location.href,
@@ -535,7 +493,6 @@ struct QQWebView: UIViewRepresentable {
                   rect: r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null,
                   scrollY: window.scrollY || 0,
                   tips: tips ? tips.innerText.replace(/\\n/g, ' ') : '',
-                  invalidShown: inv ? (getComputedStyle(inv).display !== 'none') : null,
                   ua: navigator.userAgent.slice(0, 80),
                   cookieOK: document.cookie.length > 0
                 });
@@ -571,7 +528,7 @@ struct QQWebView: UIViewRepresentable {
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else { return false }
 
-            reportInvalid(obj)
+
 
             guard let r = obj["rect"] as? [String: Any],
                   let x = (r["x"] as? NSNumber)?.doubleValue,
@@ -586,13 +543,7 @@ struct QQWebView: UIViewRepresentable {
             return true
         }
 
-        /// 页面自己说码失效了吗（`#qr_invalid` 显示，或 tips 里出现"失效/过期"）
-        private func reportInvalid(_ obj: [String: Any]) {
-            let shown = (obj["invalidShown"] as? Bool) ?? false
-            let tips = (obj["tips"] as? String) ?? ""
-            let says = shown || tips.contains("失效") || tips.contains("过期")
-            if says { onQRInvalid?() }
-        }
+
 
         func webView(_ webView: WKWebView,
                      didFail navigation: WKNavigation!, withError error: Error) {

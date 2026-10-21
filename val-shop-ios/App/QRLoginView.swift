@@ -28,19 +28,11 @@ struct QRLoginView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    qrBlock
-                        .frame(maxWidth: .infinity)
-                        .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    statusRow
-                }
-
-                // 只留二维码 + 状态。过程日志和说明文字都去掉了 ——
-                // 扫码页就该只有一张码。
+            // 只有一张码：和 QQ 那边同一套版式（medium sheet + 居中白卡 + 无任何提示条）
+            VStack {
+                Spacer(minLength: 0)
+                qrBlock
+                Spacer(minLength: 0)
             }
             .navigationTitle("微信扫码登录")
             .navigationBarTitleDisplayMode(.inline)
@@ -60,6 +52,7 @@ struct QRLoginView: View {
                 }
             }
         }
+        .presentationDetents([.medium])
         .onAppear { wire() }
         .onDisappear { login.cancel() }
     }
@@ -67,12 +60,11 @@ struct QRLoginView: View {
     // MARK: - 二维码
 
     private var qrBlock: some View {
-        VStack(spacing: 14) {
-            ZStack {
+        ZStack {
                 // 白底圆角，投影把它从列表底上托起来
                 RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous)
                     .fill(.white)
-                    .frame(width: Self.qrSide, height: Self.qrSide)
+                    .frame(width: ZW.qrCardSide, height: ZW.qrCardSide)
                     .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
 
                 if let data = image?.data, let ui = UIImage(data: data) {
@@ -80,7 +72,7 @@ struct QRLoginView: View {
                         .interpolation(.none)      // 二维码放大不能糊
                         .resizable()
                         .scaledToFit()
-                        .frame(width: Self.qrSide - 24, height: Self.qrSide - 24)
+                        .frame(width: ZW.qrCardSide - ZW.qrMargin * 2, height: ZW.qrCardSide - ZW.qrMargin * 2)
                         .transition(.opacity)
                 } else {
                     ProgressView()
@@ -95,21 +87,13 @@ struct QRLoginView: View {
                 guard stage == .expired || stage.isTerminal else { return }
                 restart()
             }
-
-            Text("请使用「微信」扫一扫")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 8)
     }
-
-    private static let qrSide: CGFloat = 224
 
     private var expiredOverlay: some View {
         ZStack {
             RoundedRectangle(cornerRadius: ZW.radiusCard, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .frame(width: Self.qrSide, height: Self.qrSide)
+                .frame(width: ZW.qrCardSide, height: ZW.qrCardSide)
             VStack(spacing: 8) {
                 Image(systemName: "arrow.clockwise")
                     .font(.title2)
@@ -121,38 +105,6 @@ struct QRLoginView: View {
         }
     }
 
-    // MARK: - 状态
-
-    private var statusRow: some View {
-        HStack(spacing: 10) {
-            if stage.isBusy {
-                ProgressView().controlSize(.small)
-            } else {
-                ZWDiamond()
-                    .fill(colorForStage)
-                    .frame(width: 8, height: 8)
-            }
-            Text(stage.text)
-                .font(.subheadline)
-            Spacer(minLength: 0)
-            if stage.isTerminal || stage == .expired {
-                Button("重来") { restart() }
-                    .buttonStyle(.borderless)
-                    .font(.footnote)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var colorForStage: Color {
-        switch stage {
-        case .success:   return .zwSignal
-        case .failed:    return .red
-        case .scanned:   return .zwRouge
-        case .cancelled: return .secondary
-        default:         return .secondary
-        }
-    }
 
     // MARK: - 逻辑
 
