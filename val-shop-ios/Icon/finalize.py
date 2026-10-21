@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-图标收尾：压平 → 装库 → 出对照表
+图标收尾：压平 → 出对照表
 
     python val-shop-ios/Icon/finalize.py
 
- 1. 把 Icon/out/png/ 里 Chrome 截的图压成 RGB（App Store 不收带 alpha 的图标）
- 2. 主方案的 flat-<theme> 装进 App/Assets.xcassets/AppIcon.appiconset/
-    —— 这是**兜底**：不画玻璃、不画投影，只底色 + 层轮廓；真玻璃由系统的 .icon 渲染
- 3. 出两张表：
+ 1. 把 Icon/out/png/ 里 Chrome 截的图压成 RGB
+ 2. 出两张表：
     preview/concepts.png      三个候选方案并排（挑样式用）
     preview/contact-sheet.png 主方案三外观 × 四尺寸 + 浅色壁纸（验收用）
+
+**不再往 Assets.xcassets 里塞 PNG**：App 图标就是 `Icon/ValPeek.icon`
+（平面层 + icon.json），构建时由 actool 编译。这里出的图只用于评审。
 
 前置：node Icon/gen.mjs && node Icon/render.mjs
 """
@@ -25,7 +26,6 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = pathlib.Path(__file__).resolve().parent
 PNG = HERE / "out" / "png"
 PREVIEW = HERE / "preview"
-ASSETS = HERE.parent / "App" / "Assets.xcassets" / "AppIcon.appiconset"
 
 THEMES = [
     ("light", "浅色", "AppIcon-1024.png"),
@@ -122,14 +122,14 @@ def main() -> int:
             print("  " + m)
         return 1
 
-    print("① 压平成 RGB + 装进 xcassets（兜底稿：不画玻璃）")
-    for theme, _, name in THEMES:
-        src = PNG / f"flat-{theme}.png"
-        im = flatten(src, src)
-        assert im.size == (1024, 1024), f"{src.name} 不是 1024×1024：{im.size}"
-        dst = ASSETS / name
-        im.save(dst, "PNG")
-        print(f"  {name:24} {im.mode} {im.size[0]}×{im.size[1]}  sha256:{sha(dst)}")
+    print("① 压平成 RGB（评审用；图标本身由 .icon 编译）")
+    for theme, _, _ in THEMES:
+        for kind in ("flat", "preview"):
+            src = PNG / f"{kind}-{theme}.png"
+            if src.exists():
+                im = flatten(src, src)
+                assert im.size == (1024, 1024), f"{src.name} 不是 1024×1024：{im.size}"
+                print(f"  {src.name:24} {im.mode} {im.size[0]}×{im.size[1]}")
 
     print("② 圆角预览稿 → Icon/preview/")
     PREVIEW.mkdir(parents=True, exist_ok=True)

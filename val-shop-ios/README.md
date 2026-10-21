@@ -1,4 +1,4 @@
-# 无畏契约 · 每日商店（iOS 26 / Liquid Glass · 入荷板）
+﻿# 无畏契约 · 每日商店（iOS 26 / Liquid Glass · 入荷板）
 
 原生 SwiftUI 的独立每日商店 App。**代码推 GitHub → Actions 出未签名 IPA → 手机上自签安装。**
 
@@ -52,7 +52,7 @@ val-shop-ios/
 │   ├─ RolePickerView.swift       多角色切换
 │   ├─ Theme.swift                模型 → 视图的取值助手（品质色、价格千位、会话健康度）
 │   ├─ BundledConfig.plist        ★ CI 用它注入商店接口路径
-│   ├─ Assets.xcassets/           AppIcon（浅色/深色/着色三张 1024，无 alpha）/ AccentColor
+│   ├─ Assets.xcassets/           品牌色 + AccentColor（App 图标不在这里，见 Icon/）
 │   ├─ selfcheck.py               工程自检（YAML/plist/图标三件套/.icon 包/**Swift 语法**/设计资产）
 │   └─ Localizable.xcstrings      String Catalog
 ├─ design/                        ★ 设计预览台（视觉事实来源）
@@ -63,7 +63,7 @@ val-shop-ios/
 │   └─ geometry_probe.swift       切角/品质钻/斜纹/网格的路径点对账
 ├─ Icon/                          ★ 图标（alpha 层 + icon.json，玻璃由系统渲染）
 │   ├─ gen.mjs                    几何 → alpha 层 SVG + icon.json + 评审稿（CONCEPT=a/b/c）
-│   ├─ render.mjs                 Chrome headless 栅格化 1024（评审稿 / 兜底稿）
+│   ├─ render.mjs                 Chrome headless 栅格化 1024（只用于评审）
 │   ├─ finalize.py                压平 RGB + 装 xcassets + 两张对照表
 │   ├─ v-polygon.json             官方 V 标顶点（对 179px 原始标逐行采样得来）
 │   ├─ ValPeek.icon/              Icon Composer 包：Assets/ 纯 alpha 层 + icon.json
@@ -397,7 +397,7 @@ swiftc -O flow_probe.swift -o flow.exe; .\flow.exe
 ```powershell
 node   val-shop-ios/Icon/gen.mjs        # 几何 → alpha 层 SVG + icon.json + 评审稿
 node   val-shop-ios/Icon/render.mjs     # SVG → 1024 PNG（本机 Chrome headless）
-python val-shop-ios/Icon/finalize.py    # 出对照表；顺手把兜底稿装进 xcassets
+python val-shop-ios/Icon/finalize.py    # 出两张对照表（不碰 App 包）
 CONCEPT=a node val-shop-ios/Icon/gen.mjs   # 换方案（a 斜卡 / b 店面 / c 单 V）
 ```
 
@@ -427,17 +427,23 @@ CONCEPT=a node val-shop-ios/Icon/gen.mjs   # 换方案（a 斜卡 / b 店面 / c
 早先把折角切开、三段各自描边，接缝处就多出三道白线，缩到 60pt 变成三条毛边。
 现在按共边把左缎带并成一条 7 顶点轮廓（见 `gen.mjs` 顶部）。
 
-**兜底 PNG 是另一回事**（`Assets.xcassets` 那三张）：系统外的构建拿不到 `.icon`，
-只能吃 PNG，所以 `finalize.py` 会出一版**平面**稿 —— 底色 + 环（实色）+ V，
-**不画玻璃、不画投影**，免得和真玻璃效果对不上。三张 1024、方形、**无 alpha**
-（App Store 硬要求，`selfcheck.py` 读 IHDR 验）。
+**构建真的在用它**（`b6f13d2` 之后 + 分支 `try-icon` 验证过）：`project.yml` 把
+`Icon/ValPeek.icon` 收进 target，`ASSETCATALOG_COMPILER_APPICON_NAME: ValPeek` 指向它，
+Xcode 就会把这个包和资产目录一起喂给 actool：
 
-**`.icon` 还没接进构建**：本机没有 Xcode，验不了 `actool` 认不认这个手写包。
-在 macOS 上要接的话：把 `Icon/ValPeek.icon` 拖进 target（或 `project.yml` 里加进 sources），
-App Icon 指向它，然后 `xcodebuild` 跑一遍看 `actool` 有没有报错；跑通了再把
-`ASSETCATALOG_COMPILER_APPICON_NAME` 挪过去，PNG 留作备份。
+```
+actool App/Assets.xcassets Icon/ValPeek.icon --app-icon ValPeek --compile …/ValPeek.app …
+note: Emplaced …/ValPeek.app/ValPeek60x60@2x.png
+note: Emplaced …/ValPeek.app/Assets.car          ← 177 KB → 2.7 MB，层和系统生成的外观都在里面
+```
 
-> 出图后看两张：`Icon/preview/concepts.png`（挑方案）、`Icon/preview/contact-sheet.png`
+包里 `CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconName = ValPeek`，就是这份 `.icon`。
+资产目录里那套三张 1024 PNG **已经删掉**了 —— 一个图标一个来源，不再两套。
+
+> `Assets.car` 里那份是**系统渲染**的（玻璃、高光、投影都由 iOS 加）。想看图：
+> 解包 IPA，`work/cgbi_decode.py` 能把 actool 压过的 Cgbi PNG 还原成普通 PNG。
+
+> 评审看两张：`Icon/preview/concepts.png`（挑方案）、`Icon/preview/contact-sheet.png`
 > （三外观 × 96/64/40/29px + 浅色壁纸）。1024 好看不算数，29px 认得出才算。
 > 注意：这两张里的玻璃是**手画的模拟**，真机上是系统渲染，会有出入。
 
@@ -459,7 +465,7 @@ App Icon 指向它，然后 `xcodebuild` 跑一遍看 `actool` 有没有报错�
 | 并发正确性 | 模型全 `Sendable`，`ZhangwaClient` 显式 `@MainActor`，JSON 工具标 `nonisolated` |
 | Observation | `@Observable` + `@Environment(AppModel.self)`，无 `ObservableObject`/`@Published` |
 | Swift Testing | `@Suite` / `@Test` / `#expect` / `#require` / 参数化用例，无 XCTest |
-| App Icon | `Icon/ValPeek.icon`：纯 alpha 分层素材（雨棚 / 橱窗 / V）+ `icon.json`（fill/glass/translucency/shadow），玻璃由系统渲染；`Assets.xcassets` 里三张 1024 是**平面兜底**（无 alpha）；两张对照表在 `Icon/preview/` |
+| App Icon | `Icon/ValPeek.icon`：纯 alpha 分层素材（雨棚 / 橱窗 / V）+ `icon.json`（fill/glass/translucency/shadow）；**构建直接用它**（actool 编译，`CFBundleIconName = ValPeek`），资产目录里不再放图标 PNG |
 | 无障碍 | 卡片 `.accessibilityElement(children: .combine)` + 中文标签与提示；引信条报 `accessibilityValue`（HIG Accessibility） |
 | Dynamic Type | 语义字号；卡片内文字给 `lineLimit` + `minimumScaleFactor`，Dynamic Type 拉到最大时不会撑破卡 |
 | 减弱动态效果 | `accessibilityReduceMotion` 打开时，翻牌从 3D 旋转降级成交叉淡入 |
@@ -485,7 +491,7 @@ python val-shop/capture/lint_swift_shell_damage.py
 # ④ 设计预览台（改 UI 先看这个）
 powershell -File val-shop-ios/design/shoot.ps1
 
-# ⑤ 图标：alpha 层 + 配置 → 评审稿 → 兜底 PNG（改图标只跑这三行）
+# ⑤ 图标：alpha 层 + 配置 → 评审稿（改图标只跑这三行）
 node val-shop-ios/Icon/gen.mjs; node val-shop-ios/Icon/render.mjs; python val-shop-ios/Icon/finalize.py
 #   └ 挑方案：CONCEPT=a|b|c node val-shop-ios/Icon/gen.mjs，再跑后两行
 
@@ -518,7 +524,7 @@ cd val-shop-ios && xcodegen generate && open ValPeek.xcodeproj
 | `App/` SwiftUI 层（本次大改后） | ⏳ 本机只做了**语法 + 几何 + 隔离语义**三层验证；类型检查要等 CI |
 | Liquid Glass API | ✅ 编译通过，且二进制里确认链上了 `glassEffect` / `GlassEffectContainer` / `tabBarMinimizeBehavior` / `scrollEdgeEffectStyle` |
 | 未签名 IPA | ✅ 产出并校验：Payload 结构正确、无 `_CodeSignature` 残留、`MinimumOSVersion 26.0`、arm64、图标已编译、`BundledConfig.plist` 已注入 |
-| App 图标 | ✅ `Icon/ValPeek.icon` 是「纯 alpha 层 + icon.json」，结构自检通过（层里无底色/渐变/滤镜）；兜底 PNG 三张 1024 无 alpha 也验过。⚠️ 没在 Icon Composer 里打开过、没走 `actool`，所以 `.icon` 还没接进构建；对照表里的玻璃是手画模拟，不是系统渲染 |
+| App 图标 | ✅ `Icon/ValPeek.icon`（纯 alpha 层 + icon.json）**已接进构建**：CI 上 actool 编译通过，包里 `CFBundleIconName = ValPeek`、`Assets.car` 2.7 MB。⚠️ 没在 Icon Composer GUI 里打开过；对照表里的玻璃是手画模拟，真机外观要装到手机上才看得到 |
 | 滚动 Release 直链 | ✅ 实测 HTTP 206 可下载，返回 PKZIP |
 | 真机运行 | ⚠️ 没跑过 —— 需要你自签装到手机上才能确认运行时行为 |
 
@@ -578,3 +584,5 @@ LiquidGlass.swift:73:   error: type 'some Hashable' does not conform to the 'Sen
 ## 九、免责
 
 只用来读你自己账号的商店数据。别拿去批量爬或者压服务器。
+
+

@@ -91,7 +91,6 @@ for rel in ["Info.plist", "BundledConfig.plist"]:
 print()
 print("=== 4) Assets ===")
 for rel in ["Contents.json",
-            "AppIcon.appiconset/Contents.json",
             "AccentColor.colorset/Contents.json"]:
     p = ROOT / "val-shop-ios" / "App" / "Assets.xcassets" / rel
     try:
@@ -116,16 +115,17 @@ def png_info(p):
     return w, h, depth, ctype, len(data)
 
 
-# 图标三件套：App Store 只认方形、**不带 alpha** 的 1024
-want = {
-    "AppIcon-1024.png": "浅色",
-    "AppIcon-1024-dark.png": "深色",
-    "AppIcon-1024-tinted.png": "着色",
-}
-digests = {}
 if not ICONSET.exists():
-    fail("AppIcon.appiconset 不存在")
+    # App 图标走 Icon Composer 文档（Icon/ValPeek.icon），4b 会验它
+    print("  OK   没有 AppIcon.appiconset —— 图标由 Icon/ValPeek.icon 提供（见 4b）")
 else:
+    # 老路子（资产目录三张 PNG）如果还在，就照样验一遍
+    want = {
+        "AppIcon-1024.png": "浅色",
+        "AppIcon-1024-dark.png": "深色",
+        "AppIcon-1024-tinted.png": "着色",
+    }
+    digests = {}
     for name, label in want.items():
         p = ICONSET / name
         if not p.exists():
@@ -227,6 +227,15 @@ else:
                 fail(f"{f.name} 里烤进了 {'/'.join(hits)} —— 层只该是透明画布 + 形状")
             else:
                 print(f"  OK   {f.name} 是纯 alpha 层（{len(raw)} B，无底色/渐变/滤镜）")
+
+        # 这个包必须真的接进了构建，否则等于白写
+        proj = (ROOT / "val-shop-ios" / "project.yml").read_text(encoding="utf-8")
+        for needle, why in [("Icon/ValPeek.icon", "要把 .icon 收进 target，actool 才看得到"),
+                            ("ASSETCATALOG_COMPILER_APPICON_NAME: ValPeek", "App Icon 要指向这个 .icon")]:
+            if needle in proj:
+                print(f"  OK   project.yml 里有 {needle}（{why}）")
+            else:
+                fail(f"project.yml 缺 {needle} —— {why}")
     except Exception as e:
         fail(f"icon.json 解析失败  {e}")
 
