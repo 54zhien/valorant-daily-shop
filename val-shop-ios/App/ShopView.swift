@@ -42,9 +42,11 @@ struct ShopView: View {
                     }
                 }
                 .padding(.horizontal, ZW.pad)
-                // 顶部只留一点点：信息栏本身就是页面的开头，
-                // 上面再空 12pt 纯属浪费 —— 省下的高度让卡牌能露出来
-                .padding(.top, 2)
+                // 顶部留白：信息栏是页面开头，但紧贴导航栏会显得局促。
+                // 16 是试出来的折中 —— 再大就把卡牌推到折叠线以下了
+                // （之前 12 的时候用户觉得卡牌太靠下，所以只给顶部这么多，
+                //   不再像原来那样上下各 12）。
+                .padding(.top, 16)
                 .padding(.bottom, ZW.gap)
                 .frame(maxWidth: ZW.boardMaxWidth)
                 .frame(maxWidth: .infinity)
