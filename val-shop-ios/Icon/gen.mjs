@@ -61,6 +61,31 @@ const SQ = squirclePath();
    · V 标    = 实色品牌红，glass:false（保住颜色，不被玻璃洗淡）
 */
 
+// 商店雨棚：平顶 + 一排半圆锯齿垂边。整块用同一路径既当填充也当裁剪，
+// 条纹就不会溢出到锯齿外面。
+const AWN = { x0: 132, x1: 892, yTop: 120, yBot: 262, n: 9, r: 14 };
+
+function awningPath({ x0, x1, yTop, yBot, n, r }) {
+  const w = (x1 - x0) / n, rs = w / 2;
+  let d = `M ${x0 + r} ${yTop} L ${x1 - r} ${yTop} A ${r} ${r} 0 0 1 ${x1} ${yTop + r} L ${x1} ${yBot}`;
+  for (let i = n - 1; i >= 0; i--) {
+    const xa = x0 + i * w, xc = xa + rs;
+    d += ` Q ${xc.toFixed(2)} ${(yBot + 2 * rs).toFixed(2)} ${xa.toFixed(2)} ${yBot}`;
+  }
+  return d + ` L ${x0} ${yTop + r} A ${r} ${r} 0 0 1 ${x0 + r} ${yTop} Z`;
+}
+
+const AWN_D = awningPath(AWN);
+const AWN_W = (AWN.x1 - AWN.x0) / AWN.n;
+const AWN_STRIPES = Array.from({ length: AWN.n }, (_, i) => i)
+  .filter(i => i % 2 === 0)
+  .map(i => `<rect x="${(AWN.x0 + i * AWN_W).toFixed(2)}" y="${AWN.yTop - 4}" width="${AWN_W.toFixed(2)}"
+        height="${(AWN.yBot - AWN.yTop + 2 * (AWN_W / 2) + 8).toFixed(2)}" fill="#E8323F"/>`)
+  .join('\n      ');
+
+// 橱窗
+const WIN = { x: 212, y: 262, w: 600, h: 568, r: 60 };
+
 const CONCEPTS = {
   a: {
     label: 'A 斜卡 + V',
@@ -88,26 +113,36 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 取景环 + V',
+    label: 'B 店面 + V',
     fill: 'srgb:0.058824,0.098039,0.137255,1.00000',
     layers: [
       {
-        name: '取景环', glass: true,
-        body: `<path fill-rule="evenodd" fill="#FFFFFF" fill-opacity="0.85"
-      d="M 512 162 a 350 350 0 1 0 0.01 0 Z M 512 242 a 270 270 0 1 1 -0.01 0 Z"/>`,
+        // 雨棚：不玻璃化 —— 红白条纹是品牌色，交给系统玻璃会被洗淡
+        name: '雨棚', glass: false,
+        body: `<defs><clipPath id="awn"><path d="${AWN_D}"/></clipPath></defs>
+      <path d="${AWN_D}" fill="#F4EFE6"/>
+      <g clip-path="url(#awn)">
+      ${AWN_STRIPES}
+      </g>
+      <path d="${AWN_D}" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3"/>`,
+      },
+      {
+        // 橱窗：玻璃层，系统会把它做成磨砂玻璃
+        name: '橱窗', glass: true,
+        body: `<rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}"
+        fill="#FFFFFF" fill-opacity="0.12"/>
+      <rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}"
+        fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="4"/>`,
       },
       {
         name: 'V', glass: false,
-        body: vPathD(420, 512, 672).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
+        body: vPathD(400, 512, 709).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
       },
     ],
-    flat: (t) => `<path fill-rule="evenodd" fill="${t.glass}"
-      d="M 512 162 a 350 350 0 1 0 0.01 0 Z M 512 242 a 270 270 0 1 1 -0.01 0 Z"/>`,
-    decor: `<path fill-rule="evenodd" fill="url(#ringFill)"
-      d="M 512 162 a 350 350 0 1 0 0.01 0 Z M 512 242 a 270 270 0 1 1 -0.01 0 Z"/>
-    <path fill-rule="evenodd" fill="none" stroke="url(#glassEdge)" stroke-width="4"
-      d="M 512 162 a 350 350 0 1 0 0.01 0 Z M 512 242 a 270 270 0 1 1 -0.01 0 Z"/>
-    <ellipse cx="392" cy="286" rx="150" ry="66" fill="url(#glassSpec)" transform="rotate(-28 392 286)"/>`,
+    decor: `<rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}" fill="url(#glassFill)"/>
+    <rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}" fill="none" stroke="url(#glassEdge)" stroke-width="4"/>
+    <ellipse cx="360" cy="380" rx="210" ry="86" fill="url(#glassSpec)" transform="rotate(-18 360 380)"/>
+    <rect x="${WIN.x}" y="${WIN.y + WIN.h - 260}" width="${WIN.w}" height="260" rx="${WIN.r}" fill="url(#glassShade)"/>`,
   },
 
   c: {
@@ -129,9 +164,9 @@ if (!CONCEPTS[PRIMARY]) throw new Error(`未知方案 ${PRIMARY}，可选 ${Obje
 /* ================= 外观取值 =================
    .icon 由系统自动适配；这两组只服务兜底 PNG 与评审稿。 */
 const THEMES = {
-  light: { fill: '#0F1923', glass: 'rgba(255,255,255,0.18)', rim: 'rgba(255,255,255,0.60)', v: ['#FF4655'] },
-  dark: { fill: '#080F16', glass: 'rgba(255,255,255,0.11)', rim: 'rgba(255,255,255,0.40)', v: ['#E5484F'] },
-  tinted: { fill: '#15181C', glass: 'rgba(255,255,255,0.15)', rim: 'rgba(255,255,255,0.52)', v: ['#EDF0F3'] },
+  light: { fill: '#0F1923', glass: 'rgba(255,255,255,0.12)', rim: 'rgba(255,255,255,0.55)', v: ['#FF4655'], awnRed: '#FF4655', awnCream: '#F4EFE6' },
+  dark: { fill: '#080F16', glass: 'rgba(255,255,255,0.09)', rim: 'rgba(255,255,255,0.38)', v: ['#E5484F'], awnRed: '#D8323F', awnCream: '#D9D3C9' },
+  tinted: { fill: '#15181C', glass: 'rgba(255,255,255,0.13)', rim: 'rgba(255,255,255,0.50)', v: ['#EDF0F3'], awnRed: '#AEB6BE', awnCream: '#F2F4F6' },
 };
 
 /* ================= SVG 组装 ================= */
@@ -142,19 +177,23 @@ const layerSvg = (body) => `<?xml version="1.0" encoding="UTF-8"?>
 </svg>
 `;
 
-// 把方案层按外观重上色。.icon 里存原稿（纯 alpha），这里只给兜底图/评审稿用。
-// outlineOnly：兜底 PNG 不画玻璃，玻璃层只留边线 —— 免得出来一整块灰塑料。
-function themeLayer(layer, theme, { outlineOnly = false } = {}) {
+// 把方案层按外观重上色。.icon 里存原稿（纯 alpha + 品牌色），这里只给兜底图/评审稿用。
+// 兜底 PNG 不画玻璃：玻璃层变成一层平涂（rgba 自带 alpha），免得出来一整块灰塑料。
+function themeLayer(layer, theme) {
   const t = THEMES[theme];
   let body = layer.body;
   if (layer.glass) {
     body = body
-      .replaceAll('fill-opacity="0.85"', '').replaceAll('fill-opacity="0.16"', '')
-      .replaceAll('stroke-opacity="0.55"', '')
-      .replaceAll('fill="#FFFFFF"', outlineOnly ? 'fill="none"' : `fill="${t.glass}"`)
+      .replace(/fill-opacity="[\d.]+"/g, '')     // 换成 rgba 后不再需要单独的 opacity
+      .replace(/stroke-opacity="[\d.]+"/g, '')
+      .replaceAll('fill="#FFFFFF"', `fill="${t.glass}"`)
       .replaceAll('stroke="#FFFFFF"', `stroke="${t.rim}"`);
   } else {
-    body = body.replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`);
+    body = body
+      .replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`)
+      .replaceAll('fill="#E8323F"', `fill="${t.awnRed}"`)
+      .replaceAll('fill="#F4EFE6"', `fill="${t.awnCream}"`)
+      .replace(/stroke="#FFFFFF" stroke-opacity="[\d.]+"/g, `stroke="${t.rim}"`);
   }
   return body;
 }
