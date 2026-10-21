@@ -184,10 +184,15 @@ extension UIImage {
         // 留一个码点左右余量，别把定位角裁贴边（扫描器需要一点静区）
         let padX = max(2, (maxX - minX) / 48)
         let padY = max(2, (bottom - top) / 48)
-        let rect = CGRect(x: max(0, minX - padX),
-                          y: max(0, top - padY),
-                          width: CGFloat(min(w - 1, maxX + padX) - max(0, minX - padX) + 1),
-                          height: CGFloat(min(h - 1, bottom + padY) - max(0, top - padY) + 1))
+        // 拆成几步算：一行里塞太多 CGFloat/Int 混算，Swift 的类型检查会超时
+        let left = max(0, minX - padX)
+        let topEdge = max(0, top - padY)
+        let right = min(w - 1, maxX + padX)
+        let bottomEdge = min(h - 1, bottom + padY)
+        let rect = CGRect(x: CGFloat(left),
+                          y: CGFloat(topEdge),
+                          width: CGFloat(right - left + 1),
+                          height: CGFloat(bottomEdge - topEdge + 1))
         guard let cropped = cg.cropping(to: rect) else { return self }
         return UIImage(cgImage: cropped, scale: scale, orientation: imageOrientation)
     }
