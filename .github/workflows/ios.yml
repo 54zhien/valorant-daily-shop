@@ -151,6 +151,17 @@ jobs:
           xcodegen generate
           ls -la
 
+      - name: 探针：生成的工程把 App Icon 指向谁
+        working-directory: val-shop-ios
+        continue-on-error: true
+        run: |
+          echo '=== pbxproj 里的 APPICON 设置 ==='
+          grep -n 'ASSETCATALOG_COMPILER_APPICON_NAME' ValPeek.xcodeproj/project.pbxproj || true
+          echo '=== pbxproj 里的 ValPeek.icon 引用 ==='
+          grep -n 'ValPeek.icon' ValPeek.xcodeproj/project.pbxproj || true
+          echo '=== 解析后的构建设置 ==='
+          xcodebuild -project ValPeek.xcodeproj -scheme ValPeek -configuration Release -showBuildSettings 2>/dev/null | grep -i 'APPICON' || true
+
       - name: 构建（不签名）
         working-directory: val-shop-ios
         run: |
@@ -255,3 +266,4 @@ jobs:
 #   Settings → Secrets and variables → Actions → Variables 建一个
 #   ZW_SHOP_PATH 变量（值形如 /go/agame/asset/storefront），构建时会写进
 #   App/BundledConfig.plist。
+
