@@ -30,7 +30,7 @@ struct ShopView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: ZW.gap) {
+                VStack(spacing: 8) {
                     identityCard
                     if let alert = alertInfo {
                         alertRow(alert)
@@ -42,7 +42,10 @@ struct ShopView: View {
                     }
                 }
                 .padding(.horizontal, ZW.pad)
-                .padding(.vertical, ZW.gap)
+                // 顶部只留一点点：信息栏本身就是页面的开头，
+                // 上面再空 12pt 纯属浪费 —— 省下的高度让卡牌能露出来
+                .padding(.top, 2)
+                .padding(.bottom, ZW.gap)
                 .frame(maxWidth: ZW.boardMaxWidth)
                 .frame(maxWidth: .infinity)
             }
@@ -80,7 +83,7 @@ struct ShopView: View {
         Button {
             if model.canSwitchRole { showRolePicker = true }
         } label: {
-            VStack(spacing: 9) {
+            VStack(spacing: 6) {
                 avatar
 
                 HStack(spacing: 4) {
@@ -101,16 +104,25 @@ struct ShopView: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .disabled(!model.canSwitchRole)
+        // ⚠️ 这里用 allowsHitTesting 而不是 .disabled()。
+        //
+        //    `.disabled(true)` 会让 SwiftUI 把 Button 的**整个 label 降透明度**，
+        //    于是只有一个角色（< 100% 的用户）看到的就是「整条信息栏发灰变暗」。
+        //    那个变暗没有任何含义 —— 用户会以为登录状态出问题了。
+        //
+        //    我们真正想表达的只是「不可点」，那就只关掉命中测试。
+        .allowsHitTesting(model.canSwitchRole)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(model.displayName)，\(model.displaySubtitle)")
     }
 
-    /// 卡面。放大到 76pt、圆形裁切、居中 —— 整条信息栏的视觉重心。
+    /// 卡面。圆形裁切、居中 —— 整条信息栏的视觉重心。
+    ///
+    /// 66pt 是折中：再大就吃掉半屏（下面的卡牌被推到要滚动），
+    /// 再小就看不清卡面是谁。76 -> 66 省下的 10pt 直接让卡牌上来了。
     private var avatar: some View {
         ZStack {
             Circle().fill(Color(.tertiarySystemFill))

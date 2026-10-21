@@ -74,7 +74,7 @@ enum ZW {
     static let boardMaxWidth: CGFloat = 520
 
     /// 身份条头像
-    static let avatar: CGFloat = 76
+    static let avatar: CGFloat = 66
 
     // MARK: - 卡面画心（视觉尺寸归一）
     //
