@@ -1,4 +1,4 @@
-﻿name: Build IPA
+name: Build IPA
 
 # 出未签名 IPA，手机上用自签工具装。
 # 也可以在 Actions 页面手动触发（workflow_dispatch）。
@@ -62,7 +62,7 @@ jobs:
 
     env:
       # 仓库 Settings → Secrets and variables → Actions → Variables 里可覆盖
-      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.example.ValPeek' }}
+      BUNDLE_ID: ${{ vars.BUNDLE_ID || 'com.imzhien.ValPeek' }}
       ZW_SHOP_PATH: ${{ vars.ZW_SHOP_PATH }}
       ZW_SHOP_BODY: ${{ vars.ZW_SHOP_BODY }}
       IPA_PATH: val-shop-ios/ValPeek-unsigned.ipa

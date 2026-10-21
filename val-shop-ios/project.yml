@@ -1,4 +1,4 @@
-﻿# XcodeGen 工程描述。装了 xcodegen 之后在 val-shop-ios/ 下执行：
+# XcodeGen 工程描述。装了 xcodegen 之后在 val-shop-ios/ 下执行：
 #   xcodegen generate
 #   open ValPeek.xcodeproj
 #
@@ -56,7 +56,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: ValPeek
-        PRODUCT_BUNDLE_IDENTIFIER: com.imzhien.valpeek
+        PRODUCT_BUNDLE_IDENTIFIER: com.imzhien.ValPeek
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"             # iPhone + iPad

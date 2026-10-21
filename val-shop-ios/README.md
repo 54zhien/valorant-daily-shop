@@ -133,7 +133,7 @@ zip -qry ValPeek-unsigned.ipa Payload                                # Payload/ 
 | 坑 | 说明 |
 |---|---|
 | **证书有效期** | 免费 Apple ID 签的 App **7 天**就掉签，要重签。付费开发者账号（$99/年）签的是 **1 年** |
-| **Bundle ID** | App 里默认 `com.example.ValPeek`。如果你的证书不是通配符，在仓库 **Variables** 里建 `BUNDLE_ID` 改成和你证书匹配的，CI 会自动用它 |
+| **Bundle ID** | 默认 `com.imzhien.ValPeek`（`.github/workflows/ios.yml` 的 `BUNDLE_ID` 与 `project.yml` 两处一致）。要换就在仓库 **Variables** 里建 `BUNDLE_ID`，CI 会自动覆盖 |
 | **重装会清数据** | 自签重装如果 Bundle ID 变了，容器会被清空 —— 登录态要重新导入。所以下面那个 `ZW_SHOP_PATH` 变量能省不少事 |
 | **UDID** | 免费/个人证书要设备 UDID 在描述文件里，重装后 UDID 一般不变，不用管 |
 
