@@ -24,7 +24,8 @@ struct QRLoginView: View {
 
     @State private var login = QRLogin()
     @State private var stage: QRLogin.Stage = .idle
-    @State private var image: QRLogin.QRImage?
+    /// 裁掉四周白边之后的二维码位图（微信返回的 JPEG 自带约 12% 白边）
+    @State private var qrImage: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -67,7 +68,7 @@ struct QRLoginView: View {
                     .frame(width: ZW.qrCardSide, height: ZW.qrCardSide)
                     .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
 
-                if let data = image?.data, let ui = UIImage(data: data) {
+                if let ui = qrImage {
                     Image(uiImage: ui)
                         .interpolation(.none)      // 二维码放大不能糊
                         .resizable()
@@ -116,7 +117,8 @@ struct QRLoginView: View {
         // 等于给取码设了 5 秒上限：网慢一点（或者重试了一次）码就算回来了也不显示，
         // 用户看到的就是一直转圈。这是这次"加载很久"的主因之一。
         login.onImage = { qr in
-            withAnimation(.snappy) { image = qr }
+            let ui = UIImage(data: qr.data)?.zwTrimmingWhiteBorder()
+            withAnimation(.snappy) { qrImage = ui }
         }
         login.onSession = { session in
             model.adopt(session)
@@ -132,5 +134,61 @@ struct QRLoginView: View {
     private func restart() {
         // 不先清空：新码回来之前先留着旧的那张，避免闪一下白
         login.start()
+    }
+}
+// ============================================================================
+//  MARK: - 二维码裁边
+// ============================================================================
+
+extension UIImage {
+
+    /// 把二维码四周的白边裁掉。
+    ///
+    /// 微信下发的 JPEG 自带一圈白边（实测：176pt 的框里，可见码块只有约 154pt，
+    /// 也就是 12% 的纯白），而 QQ 那边是网页直接渲染的码、几乎没有这层白边。
+    /// 不裁的话两个登录页的码看起来一大一小 —— 裁完两边可见尺寸就一致了。
+    func zwTrimmingWhiteBorder(threshold: UInt8 = 160) -> UIImage {
+        guard let cg = cgImage else { return self }
+        let w = cg.width, h = cg.height
+        guard w > 16, h > 16 else { return self }
+
+        var pixels = [UInt8](repeating: 255, count: w * h)
+        let drew = pixels.withUnsafeMutableBytes { buf -> Bool in
+            guard let ctx = CGContext(data: buf.baseAddress,
+                                      width: w, height: h,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: w,
+                                      space: CGColorSpaceCreateDeviceGray(),
+                                      bitmapInfo: CGImageAlphaInfo.none.rawValue)
+            else { return false }
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drew else { return self }
+
+        var minX = w, maxX = -1, minY = h, maxY = -1
+        for y in 0..<h {
+            let row = y * w
+            for x in 0..<w where pixels[row + x] < threshold {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX > minX, maxY > minY else { return self }
+
+        // CGContext 是左下原点，CGImage.cropping 是左上原点 —— 这里换一下坐标系
+        let top = h - 1 - maxY
+        let bottom = h - 1 - minY
+        // 留一个码点左右余量，别把定位角裁贴边（扫描器需要一点静区）
+        let padX = max(2, (maxX - minX) / 48)
+        let padY = max(2, (bottom - top) / 48)
+        let rect = CGRect(x: max(0, minX - padX),
+                          y: max(0, top - padY),
+                          width: CGFloat(min(w - 1, maxX + padX) - max(0, minX - padX) + 1),
+                          height: CGFloat(min(h - 1, bottom + padY) - max(0, top - padY) + 1))
+        guard let cropped = cg.cropping(to: rect) else { return self }
+        return UIImage(cgImage: cropped, scale: scale, orientation: imageOrientation)
     }
 }

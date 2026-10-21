@@ -159,8 +159,10 @@ struct QQLoginView: View {
                               stage = .failed(msg)
                           },
                           onQRRect: { rect in
-                              // 只在真的变了的时候写，避免每帧都触发重绘
-                              if qrRect != rect { withAnimation(.easeOut(duration: 0.2)) { qrRect = rect } }
+                              // ⚠️ 这里**不能用 withAnimation**：量到位置的那一刻如果带动画，
+                              //    整个网页会从原来的偏移"滑"到目标位置 —— 用户看到的就是
+                              //    二维码从角落滑上来的那一下。直接赋值，一次到位。
+                              if qrRect != rect { qrRect = rect }
                           })
                 .frame(width: Self.pageSize.width, height: Self.pageSize.height)
                 .scaleEffect(webScale, anchor: .topLeading)
@@ -503,9 +505,12 @@ struct QQWebView: UIViewRepresentable {
                 if let s = value as? String {
                     // 二维码有时是页面加载完之后才由脚本塞进来的：
                     // 没量到就隔 0.7 秒再量一次（有上限，不会一直轮询）
-                    if !self.reportQRRect(from: s), self.probeTries < 12 {
+                    if !self.reportQRRect(from: s), self.probeTries < 16 {
                         self.probeTries += 1
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak webView] in
+                        // 前几秒密一点：二维码常常在 didFinish 之后才由页面脚本塞进来，
+                        // 0.7 秒的间隔会让它白等半秒多才显示
+                        let delay = self.probeTries <= 8 ? 0.25 : 0.7
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak webView] in
                             guard let webView else { return }
                             self.probePage(webView)
                         }
