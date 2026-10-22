@@ -119,6 +119,37 @@ function wedgeShop({ clear, top, bot, awnH, awnN, doorW }) {
   };
 }
 
+// 购物袋（照 App 首页 Tab 的 bag.fill，画成 VALORANT 的直线/切角语言）：
+//   · 袋身 = 上宽下窄的梯形，四角 45° 切角
+//   · 提手 = 从袋口立起来的一段，顶端也切角；开口用 evenodd 挖空（提手是"环"不是"板"）
+// 只有**外轮廓**描一圈底色当净空 —— 开口保持通底，不然提手会被描边糊死。
+// 整块居中到 (512, 512)。
+function bagShop({ top, bot, topW, botW, chamfer, handleW, handleTop, handleStroke, bar, halo }) {
+  const cx = 512;
+  const xTL = cx - topW / 2, xTR = cx + topW / 2;
+  const xBL = cx - botW / 2, xBR = cx + botW / 2;
+  const c = chamfer;
+  const hw = handleW / 2, hx0 = cx - hw, hx1 = cx + hw;
+
+  // 外轮廓：袋口左 → 提手左立柱 → 提手顶（切角）→ 提手右立柱 → 袋口右 → 袋身
+  const outer = `M ${xTL + c} ${top} L ${hx0} ${top} L ${hx0} ${handleTop + c}`
+    + ` L ${hx0 + c} ${handleTop} L ${hx1 - c} ${handleTop} L ${hx1} ${handleTop + c}`
+    + ` L ${hx1} ${top} L ${xTR - c} ${top} L ${xTR} ${top + c}`
+    + ` L ${xBR} ${bot - c} L ${xBR - c} ${bot} L ${xBL + c} ${bot}`
+    + ` L ${xBL} ${bot - c} L ${xTL} ${top + c} Z`;
+
+  // 提手开口：宽度扣掉提手厚度，顶边离提手外沿 handleStroke，底边离袋口 bar
+  const ic = Math.round(handleStroke / 2);
+  const ix0 = hx0 + handleStroke, ix1 = hx1 - handleStroke;
+  const iTop = handleTop + handleStroke, iBot = top - bar;
+  const hole = `M ${ix0} ${iBot} L ${ix0} ${iTop + ic} L ${ix0 + ic} ${iTop}`
+    + ` L ${ix1 - ic} ${iTop} L ${ix1} ${iTop + ic} L ${ix1} ${iBot} Z`;
+
+  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8"';
+  return `<path d="${outer}" fill="none" stroke="#F2EBDC" stroke-width="${halo * 2}" ${sharp}/>
+      <path d="${outer} ${hole}" fill="#FF4655" fill-rule="evenodd"/>`;
+}
+
 const CONCEPTS = {
   a: {
     label: 'A 斜卡 + V',
@@ -146,7 +177,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 倒梯形（垂距净空 72）+ 顶棚 + 拱门',
+    label: 'B 购物袋（bag.fill）+ 净空 72',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -157,7 +188,7 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: wedgeShop({ clear: 72, top: 320, bot: 600, awnH: 80, awnN: 3, doorW: 48 }).body,
+        body: bagShop({ top: 468, bot: 646, topW: 380, botW: 270, chamfer: 24, handleW: 180, handleTop: 382, handleStroke: 34, bar: 24, halo: 34 }),
       },
     ],
     decor: '',
@@ -319,6 +350,10 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
+
+
+
 
 
 
