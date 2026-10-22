@@ -61,7 +61,7 @@ val-shop-ios/
 ├─ probe/                         ★ 本机能跑的两个验算台（不参与 App target）
 │   ├─ isolation_probe.swift      并发隔离语义（MainActor-by-default 下 Shape 怎么写）
 │   └─ geometry_probe.swift       切角/品质钻/斜纹/网格的路径点对账
-├─ Icon/                          ★ 图标（alpha 层 + icon.json，玻璃由系统渲染）
+├─ Icon/                          ★ 图标（alpha 层 + icon.json：米色底 + 雨棚 + V）
 │   ├─ gen.mjs                    几何 → alpha 层 SVG + icon.json + 评审稿（CONCEPT=a/b/c）
 │   ├─ render.mjs                 Chrome headless 栅格化 1024（只用于评审）
 │   ├─ finalize.py                压平 RGB + 装 xcassets + 两张对照表
@@ -412,13 +412,16 @@ CONCEPT=a node val-shop-ios/Icon/gen.mjs   # 换方案（a 斜卡 / b 店面 / c
 所以 `Icon/ValPeek.icon/` 里只有两样东西：`Assets/*.svg`（纯 alpha 层）+ `icon.json`（参数）。
 `selfcheck.py` 会拦「层里出现整块底色 / 渐变 / 滤镜」，防止哪天又有人把玻璃烤回去。
 
-**画什么**：一间店。红白条纹的半圆锯齿雨棚 + 玻璃橱窗 + 官方 V 标，三层各管一件事：
+**画什么**：一间店。米色底（`fill.solid = #F2EBDC`）+ 红白条纹半圆锯齿雨棚 + 官方 V 标，
+**两层**，都是实色层（`glass` 全 false —— 玻璃只由系统那层负责）：
 
-| 层 | glass | 为什么 |
-|---|---|---|
-| 雨棚 | false | 红白条纹是品牌色，交给玻璃会被洗淡；这层是**实色**，条纹用裁剪画在雨棚轮廓里 |
-| 橱窗 | true | 磨砂玻璃由系统渲染，这一层的 alpha 只提供形状 |
-| V | false | 实色品牌红 |
+| 层 | 内容 |
+|---|---|
+| 雨棚 | 700 宽、5 条条纹 / 5 个锯齿，红 = `#FF4655`（**和 V 完全同色**），无描边；条纹用裁剪画在雨棚轮廓里 |
+| V | 官方 V，同样 700 宽（跟雨棚同宽），底边 y=911，实色 `#FF4655` |
+
+深色模式**不给单独素材**：iOS 26 会自动生成深色/着色外观，那就是"系统默认深色"。
+`shadow` 用预设那组（`{"kind":"neutral","opacity":0.5}`），没自己调过。
 
 另两个候选在 `Icon/preview/concepts.png`：A 斜卡（每日翻牌那张卡）、C 单 V（最省事）。
 换方案只改一个环境变量。
@@ -465,7 +468,7 @@ note: Emplaced …/ValPeek.app/Assets.car          ← 177 KB → 2.7 MB，层�
 | 并发正确性 | 模型全 `Sendable`，`ZhangwaClient` 显式 `@MainActor`，JSON 工具标 `nonisolated` |
 | Observation | `@Observable` + `@Environment(AppModel.self)`，无 `ObservableObject`/`@Published` |
 | Swift Testing | `@Suite` / `@Test` / `#expect` / `#require` / 参数化用例，无 XCTest |
-| App Icon | `Icon/ValPeek.icon`：纯 alpha 分层素材（雨棚 / 橱窗 / V）+ `icon.json`（fill/glass/translucency/shadow）；**构建直接用它**（actool 编译，`CFBundleIconName = ValPeek`），资产目录里不再放图标 PNG |
+| App Icon | `Icon/ValPeek.icon`：纯 alpha 两层素材（雨棚 / V）+ `icon.json`（米色 `fill` + 预设 `shadow`）；**构建直接用它**（actool 编译，`CFBundleIconName = ValPeek`），资产目录里不再放图标 PNG |
 | 无障碍 | 卡片 `.accessibilityElement(children: .combine)` + 中文标签与提示；引信条报 `accessibilityValue`（HIG Accessibility） |
 | Dynamic Type | 语义字号；卡片内文字给 `lineLimit` + `minimumScaleFactor`，Dynamic Type 拉到最大时不会撑破卡 |
 | 减弱动态效果 | `accessibilityReduceMotion` 打开时，翻牌从 3D 旋转降级成交叉淡入 |
@@ -584,5 +587,6 @@ LiquidGlass.swift:73:   error: type 'some Hashable' does not conform to the 'Sen
 ## 九、免责
 
 只用来读你自己账号的商店数据。别拿去批量爬或者压服务器。
+
 
 

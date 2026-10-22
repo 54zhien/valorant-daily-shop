@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // ValPeek 图标生成器（零依赖）
 //
 //   node Icon/gen.mjs              # 主方案（默认 A）
@@ -63,7 +63,8 @@ const SQ = squirclePath();
 
 // 商店雨棚：平顶 + 一排半圆锯齿垂边。整块用同一路径既当填充也当裁剪，
 // 条纹就不会溢出到锯齿外面。
-const AWN = { x0: 132, x1: 892, yTop: 120, yBot: 262, n: 9, r: 14 };
+// 简化版：5 条条纹 / 5 个锯齿，不再描边 —— 描边在 29px 上只会糊成一圈灰。
+const AWN = { x0: 162, x1: 862, yTop: 140, yBot: 250, n: 5, r: 14 };
 
 function awningPath({ x0, x1, yTop, yBot, n, r }) {
   const w = (x1 - x0) / n, rs = w / 2;
@@ -80,11 +81,8 @@ const AWN_W = (AWN.x1 - AWN.x0) / AWN.n;
 const AWN_STRIPES = Array.from({ length: AWN.n }, (_, i) => i)
   .filter(i => i % 2 === 0)
   .map(i => `<rect x="${(AWN.x0 + i * AWN_W).toFixed(2)}" y="${AWN.yTop - 4}" width="${AWN_W.toFixed(2)}"
-        height="${(AWN.yBot - AWN.yTop + 2 * (AWN_W / 2) + 8).toFixed(2)}" fill="#E8323F"/>`)
+        height="${(AWN.yBot - AWN.yTop + AWN_W / 2 + 8).toFixed(2)}" fill="#FF4655"/>`)
   .join('\n      ');
-
-// 橱窗
-const WIN = { x: 212, y: 262, w: 600, h: 568, r: 60 };
 
 const CONCEPTS = {
   a: {
@@ -114,35 +112,24 @@ const CONCEPTS = {
 
   b: {
     label: 'B 店面 + V',
-    fill: 'srgb:0.058824,0.098039,0.137255,1.00000',
+    fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
-        // 雨棚：不玻璃化 —— 红白条纹是品牌色，交给系统玻璃会被洗淡
+        // 雨棚：不玻璃化 —— 红白条纹是品牌色，交给系统玻璃会被洗淡。
+        // 红 = 和 V 完全同色（#FF4655）。
         name: '雨棚', glass: false,
         body: `<defs><clipPath id="awn"><path d="${AWN_D}"/></clipPath></defs>
-      <path d="${AWN_D}" fill="#F4EFE6"/>
+      <path d="${AWN_D}" fill="#FFFFFF"/>
       <g clip-path="url(#awn)">
       ${AWN_STRIPES}
-      </g>
-      <path d="${AWN_D}" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="3"/>`,
-      },
-      {
-        // 橱窗：玻璃层，系统会把它做成磨砂玻璃
-        name: '橱窗', glass: true,
-        body: `<rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}"
-        fill="#FFFFFF" fill-opacity="0.12"/>
-      <rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}"
-        fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="4"/>`,
+      </g>`,
       },
       {
         name: 'V', glass: false,
-        body: vPathD(400, 512, 709).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
+        body: vPathD(700, 512, 911).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
       },
     ],
-    decor: `<rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}" fill="url(#glassFill)"/>
-    <rect x="${WIN.x}" y="${WIN.y}" width="${WIN.w}" height="${WIN.h}" rx="${WIN.r}" fill="none" stroke="url(#glassEdge)" stroke-width="4"/>
-    <ellipse cx="360" cy="380" rx="210" ry="86" fill="url(#glassSpec)" transform="rotate(-18 360 380)"/>
-    <rect x="${WIN.x}" y="${WIN.y + WIN.h - 260}" width="${WIN.w}" height="260" rx="${WIN.r}" fill="url(#glassShade)"/>`,
+    decor: '',
   },
 
   c: {
@@ -162,11 +149,12 @@ const PRIMARY = process.env.CONCEPT || 'b';
 if (!CONCEPTS[PRIMARY]) throw new Error(`未知方案 ${PRIMARY}，可选 ${Object.keys(CONCEPTS).join('/')}`);
 
 /* ================= 外观取值 =================
-   .icon 由系统自动适配；这两组只服务兜底 PNG 与评审稿。 */
+   .icon 只写一份（米色底 + 品牌红）；深色/着色由系统自动生成。
+   下面这三组**只服务评审稿**（对照表里那三列），不进 App 包。 */
 const THEMES = {
-  light: { fill: '#0F1923', glass: 'rgba(255,255,255,0.12)', rim: 'rgba(255,255,255,0.55)', v: ['#FF4655'], awnRed: '#FF4655', awnCream: '#F4EFE6' },
-  dark: { fill: '#080F16', glass: 'rgba(255,255,255,0.09)', rim: 'rgba(255,255,255,0.38)', v: ['#E5484F'], awnRed: '#D8323F', awnCream: '#D9D3C9' },
-  tinted: { fill: '#15181C', glass: 'rgba(255,255,255,0.13)', rim: 'rgba(255,255,255,0.50)', v: ['#EDF0F3'], awnRed: '#AEB6BE', awnCream: '#F2F4F6' },
+  light: { fill: '#F2EBDC', v: ['#FF4655'], awnLight: '#FFFFFF', glass: 'rgba(255,255,255,0.12)', rim: 'rgba(255,255,255,0.55)' },
+  dark: { fill: '#1B1A18', v: ['#FF4655'], awnLight: '#EDE7DA', glass: 'rgba(255,255,255,0.09)', rim: 'rgba(255,255,255,0.38)' },
+  tinted: { fill: '#15161A', v: ['#EDF0F3'], awnLight: '#F2F4F6', glass: 'rgba(255,255,255,0.13)', rim: 'rgba(255,255,255,0.50)' },
 };
 
 /* ================= SVG 组装 ================= */
@@ -190,9 +178,8 @@ function themeLayer(layer, theme) {
       .replaceAll('stroke="#FFFFFF"', `stroke="${t.rim}"`);
   } else {
     body = body
-      .replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`)
-      .replaceAll('fill="#E8323F"', `fill="${t.awnRed}"`)
-      .replaceAll('fill="#F4EFE6"', `fill="${t.awnCream}"`)
+      .replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`)   // 雨棚红和 V 红是同一个 token
+      .replaceAll('fill="#FFFFFF"', `fill="${t.awnLight}"`)
       .replace(/stroke="#FFFFFF" stroke-opacity="[\d.]+"/g, `stroke="${t.rim}"`);
   }
   return body;
@@ -300,6 +287,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 

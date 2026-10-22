@@ -1,6 +1,6 @@
 {
   "fill": {
-    "solid": "srgb:0.058824,0.098039,0.137255,1.00000"
+    "solid": "srgb:0.949020,0.921569,0.862745,1.00000"
   },
   "groups": [
     {
@@ -9,19 +9,6 @@
           "hidden": false,
           "image-name": "雨棚.svg",
           "name": "雨棚",
-          "position": {
-            "scale": 1,
-            "translation-in-points": [
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "glass": true,
-          "hidden": false,
-          "image-name": "橱窗.svg",
-          "name": "橱窗",
           "position": {
             "scale": 1,
             "translation-in-points": [
