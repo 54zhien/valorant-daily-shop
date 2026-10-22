@@ -157,6 +157,22 @@ function bagUpright({ w, top, bot, handleW, handleTop, handleStroke, chamfer }) 
   return `<path d="${body}" fill="#FF4655"/>
       <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
 }
+// 袋子 + 下方的倒三角尾巴：一个轮廓画完。
+// 三角两条斜边的斜率 190/236 = 0.805，和两臂内侧的 0.81 几乎一样 →
+// 往下走净空基本恒定（y=430 处 82，y=600 处 80），所以尾巴不会贴到臂上。
+function bagWithTail({ top, bot, w, chamfer, apexY, handleW, handleTop, handleStroke }) {
+  const cx = 512, x0 = cx - w / 2, x1 = cx + w / 2, c = chamfer;
+  const body = `M ${x0 + c} ${top} L ${x1 - c} ${top} L ${x1} ${top + c}`
+    + ` L ${x1} ${bot} L ${cx} ${apexY} L ${x0} ${bot} L ${x0} ${top + c} Z`;
+  const hw = handleW / 2;
+  const handle = `M ${cx - hw} ${top} L ${cx - hw} ${handleTop + c}`
+    + ` L ${cx - hw + c} ${handleTop} L ${cx + hw - c} ${handleTop}`
+    + ` L ${cx + hw} ${handleTop + c} L ${cx + hw} ${top}`;
+  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"';
+  return `<path d="${body}" fill="#FF4655"/>
+      <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
+}
+
 const CONCEPTS = {
   a: {
     label: 'A 斜卡 + V',
@@ -184,7 +200,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 竖边购物袋（缝 ≥72）',
+    label: 'B 购物袋 + 倒三角尾巴',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -195,7 +211,7 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: bagUpright({ w: 380, top: 300, bot: 430, handleW: 190, handleTop: 236, handleStroke: 32, chamfer: 24 }),
+        body: bagWithTail({ w: 380, top: 300, bot: 430, chamfer: 24, apexY: 666, handleW: 190, handleTop: 236, handleStroke: 32 }),
       },
     ],
     decor: '',
@@ -381,6 +397,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 
