@@ -61,11 +61,7 @@ const SQ = squirclePath();
    · V 标    = 实色品牌红，glass:false（保住颜色，不被玻璃洗淡）
 */
 
-// 商店雨棚：平顶 + 一排半圆锯齿垂边。整块用同一路径既当填充也当裁剪，
-// 条纹就不会溢出到锯齿外面。
-// 简化版：5 条条纹 / 5 个锯齿，不再描边 —— 描边在 29px 上只会糊成一圈灰。
-const AWN = { x0: 162, x1: 862, yTop: 140, yBot: 250, n: 5, r: 14 };
-
+// 雨棚轮廓：平顶 + 一排半圆锯齿垂边（小店顶上那个小雨棚用它）
 function awningPath({ x0, x1, yTop, yBot, n, r }) {
   const w = (x1 - x0) / n, rs = w / 2;
   let d = `M ${x0 + r} ${yTop} L ${x1 - r} ${yTop} A ${r} ${r} 0 0 1 ${x1} ${yTop + r} L ${x1} ${yBot}`;
@@ -76,13 +72,19 @@ function awningPath({ x0, x1, yTop, yBot, n, r }) {
   return d + ` L ${x0} ${yTop + r} A ${r} ${r} 0 0 1 ${x0 + r} ${yTop} Z`;
 }
 
-const AWN_D = awningPath(AWN);
-const AWN_W = (AWN.x1 - AWN.x0) / AWN.n;
-const AWN_STRIPES = Array.from({ length: AWN.n }, (_, i) => i)
-  .filter(i => i % 2 === 0)
-  .map(i => `<rect x="${(AWN.x0 + i * AWN_W).toFixed(2)}" y="${AWN.yTop - 4}" width="${AWN_W.toFixed(2)}"
-        height="${(AWN.yBot - AWN.yTop + AWN_W / 2 + 8).toFixed(2)}" fill="#FF4655"/>`)
-  .join('\n      ');
+// 小店：小雨棚（3 个锯齿）+ 店身 + 门洞，整块红色，门用底色挖出来。
+// 位置沿 V 山谷的中线居中 —— 左右两臂的间距在任意高度都相等。
+// 山谷是向下收窄的楔形，所以小店放在偏上的位置（再往下就被两臂夹住了）：
+//   y=400 处山谷宽 592，y=590 处 302，小店 240 宽 → 左右净空 176 → 31。
+const SHOP = {
+  cx: 508, awnW: 240, yTop: 396, yBot: 434, n: 3, r: 10,
+  bodyW: 176, bodyBot: 566,
+  doorW: 76, doorTop: 506,
+};
+const SHOP_AWN = awningPath({
+  x0: SHOP.cx - SHOP.awnW / 2, x1: SHOP.cx + SHOP.awnW / 2,
+  yTop: SHOP.yTop, yBot: SHOP.yBot, n: SHOP.n, r: SHOP.r,
+});
 
 const CONCEPTS = {
   a: {
@@ -115,18 +117,25 @@ const CONCEPTS = {
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
-        // 雨棚：不玻璃化 —— 红白条纹是品牌色，交给系统玻璃会被洗淡。
-        // 红 = 和 V 完全同色（#FF4655）。
-        name: '雨棚', glass: false,
-        body: `<defs><clipPath id="awn"><path d="${AWN_D}"/></clipPath></defs>
-      <path d="${AWN_D}" fill="#FFFFFF"/>
-      <g clip-path="url(#awn)">
-      ${AWN_STRIPES}
-      </g>`,
-      },
-      {
         name: 'V', glass: false,
         body: vPathD(700, 512, 911).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
+      },
+      {
+        // 嵌在 V 山谷里的小店：和 V 同色，靠底色留出的净空把两者分开。
+        // 雨棚中间那一格用底色 → 三格红-米-红，一眼就是"棚子"。
+        name: '小店', glass: false,
+        body: `<defs><clipPath id="shopAwn"><path d="${SHOP_AWN}"/></clipPath></defs>
+      <path d="${SHOP_AWN}" fill="#FF4655"/>
+      <g clip-path="url(#shopAwn)">
+        <rect x="${(SHOP.cx - SHOP.awnW / 2 + SHOP.awnW / SHOP.n).toFixed(2)}" y="${SHOP.yTop - 4}"
+          width="${(SHOP.awnW / SHOP.n).toFixed(2)}" height="${(SHOP.yBot - SHOP.yTop + SHOP.awnW / SHOP.n + 8).toFixed(2)}" fill="#F2EBDC"/>
+      </g>
+      <rect x="${(SHOP.cx - SHOP.bodyW / 2).toFixed(2)}" y="${SHOP.yBot}"
+        width="${SHOP.bodyW}" height="${SHOP.bodyBot - SHOP.yBot}" fill="#FF4655"/>
+      <path d="M ${(SHOP.cx - SHOP.doorW / 2).toFixed(2)} ${SHOP.bodyBot}
+        L ${(SHOP.cx - SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorTop + SHOP.doorW / 2).toFixed(2)}
+        A ${(SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorW / 2).toFixed(2)} 0 0 1 ${(SHOP.cx + SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorTop + SHOP.doorW / 2).toFixed(2)}
+        L ${(SHOP.cx + SHOP.doorW / 2).toFixed(2)} ${SHOP.bodyBot} Z" fill="#F2EBDC"/>`,
       },
     ],
     decor: '',
@@ -178,7 +187,8 @@ function themeLayer(layer, theme) {
       .replaceAll('stroke="#FFFFFF"', `stroke="${t.rim}"`);
   } else {
     body = body
-      .replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`)   // 雨棚红和 V 红是同一个 token
+      .replaceAll('fill="#FF4655"', `fill="${t.v[0]}"`)   // 小店红和 V 红是同一个 token
+      .replaceAll('fill="#F2EBDC"', `fill="${t.fill}"`)   // 门洞跟着底色走
       .replaceAll('fill="#FFFFFF"', `fill="${t.awnLight}"`)
       .replace(/stroke="#FFFFFF" stroke-opacity="[\d.]+"/g, `stroke="${t.rim}"`);
   }
@@ -287,6 +297,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 

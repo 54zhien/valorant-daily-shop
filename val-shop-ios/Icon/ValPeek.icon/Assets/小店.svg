@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs><clipPath id="shopAwn"><path d="M 398 396 L 618 396 A 10 10 0 0 1 628 406 L 628 434 Q 588.00 514.00 548.00 434 Q 508.00 514.00 468.00 434 Q 428.00 514.00 388.00 434 L 388 406 A 10 10 0 0 1 398 396 Z"/></clipPath></defs>
+      <path d="M 398 396 L 618 396 A 10 10 0 0 1 628 406 L 628 434 Q 588.00 514.00 548.00 434 Q 508.00 514.00 468.00 434 Q 428.00 514.00 388.00 434 L 388 406 A 10 10 0 0 1 398 396 Z" fill="#FF4655"/>
+      <g clip-path="url(#shopAwn)">
+        <rect x="468.00" y="392"
+          width="80.00" height="126.00" fill="#F2EBDC"/>
+      </g>
+      <rect x="420.00" y="434"
+        width="176" height="132" fill="#FF4655"/>
+      <path d="M 470.00 566
+        L 470.00 544.00
+        A 38.00 38.00 0 0 1 546.00 544.00
+        L 546.00 566 Z" fill="#F2EBDC"/>
+</svg>
