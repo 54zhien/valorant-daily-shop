@@ -83,12 +83,18 @@ const [RX0, RY0] = P(176, 0), [RX1, RY1] = P(101, 95);    // 右臂内侧
 const atY = (x0, y0, x1, y1, y) => x0 + (x1 - x0) * (y - y0) / (y1 - y0);
 const valley = (y) => [atY(LX0, LY0, LX1, LY1, y), atY(RX0, RY0, RX1, RY1, y)];
 
-// 倒梯形 + 顶棚 + 门，做成一个可调的函数，好比较位置和尺寸
-function wedgeShop({ gap, top, bot, awnH, awnN, doorW }) {
+// 倒梯形 + 顶棚 + 门，做成一个可调的函数。
+// clear = **垂直于两臂内侧**的净空（不是水平偏移），量纲和"两臂之间的最小间距"一致：
+// 右臂左下端到左臂内下段的垂距 = 72.2px（1024 画布），所以 clear 至少取 72 才不显得挤。
+function wedgeShop({ clear, top, bot, awnH, awnN, doorW }) {
+  const slopeL = Math.abs((LX1 - LX0) / (LY1 - LY0));
+  const slopeR = Math.abs((RX1 - RX0) / (RY1 - RY0));
+  const shiftL = clear / Math.cos(Math.atan(slopeL));   // 垂距 → 水平偏移
+  const shiftR = clear / Math.cos(Math.atan(slopeR));
   const [tl, tr] = valley(top), [bl, br] = valley(bot);
-  const x0 = tl + gap, x1 = tr - gap, y0 = bot;
+  const x0 = tl + shiftL, x1 = tr - shiftR, y0 = bot;
   const wedge = `M ${x0.toFixed(2)} ${top} L ${x1.toFixed(2)} ${top}`
-    + ` L ${(br - gap).toFixed(2)} ${y0} L ${(bl + gap).toFixed(2)} ${y0} Z`;
+    + ` L ${(br - shiftR).toFixed(2)} ${y0} L ${(bl + shiftL).toFixed(2)} ${y0} Z`;
   const awnTop = top - awnH;
   const awn = awningPath({ x0, x1, yTop: awnTop, yBot: top, n: awnN, r: 12 });
   const stripeW = (x1 - x0) / awnN;
@@ -140,7 +146,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 倒梯形填满负空间 + 顶棚 + 拱门',
+    label: 'B 倒梯形（垂距净空 72）+ 顶棚 + 拱门',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -151,7 +157,7 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: wedgeShop({ gap: 30, top: 340, bot: 700, awnH: 80, awnN: 3, doorW: 60 }).body,
+        body: wedgeShop({ clear: 72, top: 320, bot: 600, awnH: 80, awnN: 3, doorW: 48 }).body,
       },
     ],
     decor: '',
@@ -313,6 +319,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 
