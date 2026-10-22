@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // 把 Icon/gen.mjs 产出的 SVG 栅格化成 1024×1024 PNG（用本机 Chrome，headless）
 //
 //   node Icon/render.mjs                 只渲染到 Icon/out/png/
@@ -110,3 +110,6 @@ if (process.argv.includes('--install')) {
 fs.rmSync(profile, { recursive: true, force: true });
 console.log(`\n完成：${KINDS.length * THEMES.length} 张${installed ? `，装进 xcassets ${installed} 张` : ''}`);
 console.log('提示：Chromium 截图可能带 alpha，装库前跑 python Icon/finalize.py 压平成 RGB。');
+
+
+

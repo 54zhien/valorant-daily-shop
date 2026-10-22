@@ -72,19 +72,46 @@ function awningPath({ x0, x1, yTop, yBot, n, r }) {
   return d + ` L ${x0} ${yTop + r} A ${r} ${r} 0 0 1 ${x0 + r} ${yTop} Z`;
 }
 
-// 小店：小雨棚（3 个锯齿）+ 店身 + 门洞，整块红色，门用底色挖出来。
-// 位置沿 V 山谷的中线居中 —— 左右两臂的间距在任意高度都相等。
-// 山谷是向下收窄的楔形，所以小店放在偏上的位置（再往下就被两臂夹住了）：
-//   y=400 处山谷宽 592，y=590 处 302，小店 240 宽 → 左右净空 176 → 31。
-const SHOP = {
-  cx: 508, awnW: 240, yTop: 396, yBot: 434, n: 3, r: 10,
-  bodyW: 176, bodyBot: 566,
-  doorW: 76, doorTop: 506,
-};
-const SHOP_AWN = awningPath({
-  x0: SHOP.cx - SHOP.awnW / 2, x1: SHOP.cx + SHOP.awnW / 2,
-  yTop: SHOP.yTop, yBot: SHOP.yBot, n: SHOP.n, r: SHOP.r,
-});
+// V 两臂内侧那两条直线（绝对坐标），山谷就夹在它们中间。
+// 倒梯形沿这两条线走、净空恒定 → 左右间距处处相等，这就是"镶嵌"。
+const V_S = 700 / V_W;
+const V_OX = 512 - 700 / 2;
+const V_OY = 911 - V_H * V_S;
+const P = (x, y) => [V_OX + x * V_S, V_OY + y * V_S];
+const [LX0, LY0] = P(0, 0), [LX1, LY1] = P(77, 95);       // 左臂内侧
+const [RX0, RY0] = P(176, 0), [RX1, RY1] = P(101, 95);    // 右臂内侧
+const atY = (x0, y0, x1, y1, y) => x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+const valley = (y) => [atY(LX0, LY0, LX1, LY1, y), atY(RX0, RY0, RX1, RY1, y)];
+
+// 倒梯形 + 顶棚 + 门，做成一个可调的函数，好比较位置和尺寸
+function wedgeShop({ gap, top, bot, awnH, awnN, doorW }) {
+  const [tl, tr] = valley(top), [bl, br] = valley(bot);
+  const x0 = tl + gap, x1 = tr - gap, y0 = bot;
+  const wedge = `M ${x0.toFixed(2)} ${top} L ${x1.toFixed(2)} ${top}`
+    + ` L ${(br - gap).toFixed(2)} ${y0} L ${(bl + gap).toFixed(2)} ${y0} Z`;
+  const awnTop = top - awnH;
+  const awn = awningPath({ x0, x1, yTop: awnTop, yBot: top, n: awnN, r: 12 });
+  const stripeW = (x1 - x0) / awnN;
+  const stripes = Array.from({ length: awnN }, (_, i) => i).filter(i => i % 2 === 1)
+    .map(i => `<rect x="${(x0 + i * stripeW).toFixed(2)}" y="${awnTop - 4}"`
+      + ` width="${stripeW.toFixed(2)}" height="${(top - awnTop + stripeW / 2 + 8).toFixed(2)}" fill="#F2EBDC"/>`)
+    .join('\n        ');
+  const cx = (bl + br) / 2;
+  const doorTop = y0 - doorW * 1.35;
+  return {
+    wedge, awn, stripes, cx, doorTop, y0, doorW,
+    body: `<defs><clipPath id="topAwn"><path d="${awn}"/></clipPath></defs>
+      <path d="${wedge}" fill="#FF4655"/>
+      <path d="${awn}" fill="#FF4655"/>
+      <g clip-path="url(#topAwn)">
+        ${stripes}
+      </g>
+      <path d="M ${(cx - doorW / 2).toFixed(2)} ${y0}
+        L ${(cx - doorW / 2).toFixed(2)} ${(doorTop + doorW / 2).toFixed(2)}
+        A ${(doorW / 2).toFixed(2)} ${(doorW / 2).toFixed(2)} 0 0 1 ${(cx + doorW / 2).toFixed(2)} ${(doorTop + doorW / 2).toFixed(2)}
+        L ${(cx + doorW / 2).toFixed(2)} ${y0} Z" fill="#F2EBDC"/>`,
+  };
+}
 
 const CONCEPTS = {
   a: {
@@ -113,7 +140,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 店面 + V',
+    label: 'B 倒梯形 + 顶棚 + 拱门',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -121,21 +148,10 @@ const CONCEPTS = {
         body: vPathD(700, 512, 911).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      '),
       },
       {
-        // 嵌在 V 山谷里的小店：和 V 同色，靠底色留出的净空把两者分开。
-        // 雨棚中间那一格用底色 → 三格红-米-红，一眼就是"棚子"。
+        // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
+        // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: `<defs><clipPath id="shopAwn"><path d="${SHOP_AWN}"/></clipPath></defs>
-      <path d="${SHOP_AWN}" fill="#FF4655"/>
-      <g clip-path="url(#shopAwn)">
-        <rect x="${(SHOP.cx - SHOP.awnW / 2 + SHOP.awnW / SHOP.n).toFixed(2)}" y="${SHOP.yTop - 4}"
-          width="${(SHOP.awnW / SHOP.n).toFixed(2)}" height="${(SHOP.yBot - SHOP.yTop + SHOP.awnW / SHOP.n + 8).toFixed(2)}" fill="#F2EBDC"/>
-      </g>
-      <rect x="${(SHOP.cx - SHOP.bodyW / 2).toFixed(2)}" y="${SHOP.yBot}"
-        width="${SHOP.bodyW}" height="${SHOP.bodyBot - SHOP.yBot}" fill="#FF4655"/>
-      <path d="M ${(SHOP.cx - SHOP.doorW / 2).toFixed(2)} ${SHOP.bodyBot}
-        L ${(SHOP.cx - SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorTop + SHOP.doorW / 2).toFixed(2)}
-        A ${(SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorW / 2).toFixed(2)} 0 0 1 ${(SHOP.cx + SHOP.doorW / 2).toFixed(2)} ${(SHOP.doorTop + SHOP.doorW / 2).toFixed(2)}
-        L ${(SHOP.cx + SHOP.doorW / 2).toFixed(2)} ${SHOP.bodyBot} Z" fill="#F2EBDC"/>`,
+        body: wedgeShop({ gap: 28, top: 466, bot: 704, awnH: 78, awnN: 3, doorW: 54 }).body,
       },
     ],
     decor: '',
@@ -297,6 +313,9 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
+
+
 
 
 

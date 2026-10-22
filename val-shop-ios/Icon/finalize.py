@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 图标收尾：压平 → 出对照表
@@ -34,7 +34,7 @@ THEMES = [
 ]
 CONCEPT_LABELS = {
     "a": "A 斜卡 + V",
-    "b": "B 取景环 + V",
+    "b": "B 倒梯形 + 顶棚 + 拱门",
     "c": "C 单 V",
 }
 
@@ -200,3 +200,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+
