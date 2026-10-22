@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <path d="M 346 468 L 422 468 L 422 406 L 446 382 L 578 382 L 602 406 L 602 468 L 678 468 L 702 492 L 647 622 L 623 646 L 401 646 L 377 622 L 322 492 Z" fill="none" stroke="#F2EBDC" stroke-width="68" stroke-linejoin="miter" stroke-miterlimit="8"/>
-      <path d="M 346 468 L 422 468 L 422 406 L 446 382 L 578 382 L 602 406 L 602 468 L 678 468 L 702 492 L 647 622 L 623 646 L 401 646 L 377 622 L 322 492 Z M 456 444 L 456 433 L 473 416 L 551 416 L 568 433 L 568 444 Z" fill="#FF4655" fill-rule="evenodd"/>
+  <path d="M 282 437 L 402 437 L 402 387 L 432 357 L 592 357 L 622 387 L 622 437 L 742 437 L 772 467 L 712 637 L 682 667 L 342 667 L 312 637 L 252 467 Z" fill="none" stroke="#F2EBDC" stroke-width="60" stroke-linejoin="miter" stroke-miterlimit="8"/>
+      <path d="M 282 437 L 402 437 L 402 387 L 432 357 L 592 357 L 622 387 L 622 437 L 742 437 L 772 467 L 712 637 L 682 667 L 342 667 L 312 637 L 252 467 Z M 436 411 L 436 408 L 453 391 L 571 391 L 588 408 L 588 411 Z" fill="#FF4655" fill-rule="evenodd"/>
 </svg>

@@ -188,7 +188,7 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: bagShop({ top: 468, bot: 646, topW: 380, botW: 270, chamfer: 24, handleW: 180, handleTop: 382, handleStroke: 34, bar: 24, halo: 34 }),
+        body: bagShop({ top: 437, bot: 667, topW: 520, botW: 400, chamfer: 30, handleW: 220, handleTop: 357, handleStroke: 34, bar: 26, halo: 30 }),
       },
     ],
     decor: '',
@@ -350,6 +350,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 
