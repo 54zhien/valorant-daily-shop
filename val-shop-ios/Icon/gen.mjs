@@ -119,37 +119,44 @@ function wedgeShop({ clear, top, bot, awnH, awnN, doorW }) {
   };
 }
 
-// 购物袋（照 App 首页 Tab 的 bag.fill，画成 VALORANT 的直线/切角语言）：
-//   · 袋身 = 上宽下窄的梯形，四角 45° 切角
-//   · 提手 = 从袋口立起来的一段，顶端也切角；开口用 evenodd 挖空（提手是"环"不是"板"）
-// 只有**外轮廓**描一圈底色当净空 —— 开口保持通底，不然提手会被描边糊死。
-// 整块居中到 (512, 512)。
-function bagShop({ top, bot, topW, botW, chamfer, handleW, handleTop, handleStroke, bar, halo }) {
-  const cx = 512;
-  const xTL = cx - topW / 2, xTR = cx + topW / 2;
-  const xBL = cx - botW / 2, xBR = cx + botW / 2;
+// 山谷里的购物袋：袋身两条斜边**平行于两臂内侧、垂距恒定 clear**，
+// 所以袋子永远不碰臂、也不需要描任何边（之前的 halo 那圈白边就是多余的）。
+// 提手是方折 + 切角顶，悬在袋口上方，开口天然就是底色（因为提手在袋身之外）。
+function bagInValley({ clear, top, bot, handleW, handleTop, handleStroke, chamfer }) {
+  const slopeL = Math.abs((LX1 - LX0) / (LY1 - LY0));
+  const slopeR = Math.abs((RX1 - RX0) / (RY1 - RY0));
+  const shiftL = clear / Math.cos(Math.atan(slopeL));
+  const shiftR = clear / Math.cos(Math.atan(slopeR));
+  const [tl, tr] = valley(top), [bl, br] = valley(bot);
+  const x0 = tl + shiftL, x1 = tr - shiftR;
   const c = chamfer;
-  const hw = handleW / 2, hx0 = cx - hw, hx1 = cx + hw;
-
-  // 外轮廓：袋口左 → 提手左立柱 → 提手顶（切角）→ 提手右立柱 → 袋口右 → 袋身
-  const outer = `M ${xTL + c} ${top} L ${hx0} ${top} L ${hx0} ${handleTop + c}`
-    + ` L ${hx0 + c} ${handleTop} L ${hx1 - c} ${handleTop} L ${hx1} ${handleTop + c}`
-    + ` L ${hx1} ${top} L ${xTR - c} ${top} L ${xTR} ${top + c}`
-    + ` L ${xBR} ${bot - c} L ${xBR - c} ${bot} L ${xBL + c} ${bot}`
-    + ` L ${xBL} ${bot - c} L ${xTL} ${top + c} Z`;
-
-  // 提手开口：宽度扣掉提手厚度，顶边离提手外沿 handleStroke，底边离袋口 bar
-  const ic = Math.round(handleStroke / 2);
-  const ix0 = hx0 + handleStroke, ix1 = hx1 - handleStroke;
-  const iTop = handleTop + handleStroke, iBot = top - bar;
-  const hole = `M ${ix0} ${iBot} L ${ix0} ${iTop + ic} L ${ix0 + ic} ${iTop}`
-    + ` L ${ix1 - ic} ${iTop} L ${ix1} ${iTop + ic} L ${ix1} ${iBot} Z`;
-
-  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8"';
-  return `<path d="${outer}" fill="none" stroke="#F2EBDC" stroke-width="${halo * 2}" ${sharp}/>
-      <path d="${outer} ${hole}" fill="#FF4655" fill-rule="evenodd"/>`;
+  const body = `M ${(x0 + c).toFixed(2)} ${top} L ${(x1 - c).toFixed(2)} ${top}`
+    + ` L ${x1.toFixed(2)} ${top + c} L ${(br - shiftR).toFixed(2)} ${bot - c}`
+    + ` L ${(br - shiftR - c).toFixed(2)} ${bot} L ${(bl + shiftL + c).toFixed(2)} ${bot}`
+    + ` L ${(bl + shiftL).toFixed(2)} ${bot - c} L ${x0.toFixed(2)} ${top + c} Z`;
+  const cx = 512, hw = handleW / 2;
+  const handle = `M ${cx - hw} ${top} L ${cx - hw} ${handleTop + c}`
+    + ` L ${cx - hw + c} ${handleTop} L ${cx + hw - c} ${handleTop}`
+    + ` L ${cx + hw} ${handleTop + c} L ${cx + hw} ${top}`;
+  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"';
+  return `<path d="${body}" fill="#FF4655"/>
+      <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
 }
 
+// 竖边购物袋（袋身两侧是垂直的，所以缝会从上到下收窄 —— 靠选宽度控制最小值）
+function bagUpright({ w, top, bot, handleW, handleTop, handleStroke, chamfer }) {
+  const cx = 512, x0 = cx - w / 2, x1 = cx + w / 2, c = chamfer;
+  const body = `M ${x0 + c} ${top} L ${x1 - c} ${top} L ${x1} ${top + c}`
+    + ` L ${x1} ${bot - c} L ${x1 - c} ${bot} L ${x0 + c} ${bot}`
+    + ` L ${x0} ${bot - c} L ${x0} ${top + c} Z`;
+  const hw = handleW / 2;
+  const handle = `M ${cx - hw} ${top} L ${cx - hw} ${handleTop + c}`
+    + ` L ${cx - hw + c} ${handleTop} L ${cx + hw - c} ${handleTop}`
+    + ` L ${cx + hw} ${handleTop + c} L ${cx + hw} ${top}`;
+  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"';
+  return `<path d="${body}" fill="#FF4655"/>
+      <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
+}
 const CONCEPTS = {
   a: {
     label: 'A 斜卡 + V',
@@ -177,7 +184,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 购物袋（bag.fill）+ 净空 72',
+    label: 'B 竖边购物袋（缝 ≥72）',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -188,8 +195,32 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: bagShop({ top: 437, bot: 667, topW: 520, botW: 400, chamfer: 30, handleW: 220, handleTop: 357, handleStroke: 34, bar: 26, halo: 30 }),
+        body: bagUpright({ w: 380, top: 300, bot: 430, handleW: 190, handleTop: 236, handleStroke: 32, chamfer: 24 }),
       },
+    ],
+    decor: '',
+  },
+
+  d: {
+    label: 'Q 竖边袋 300 宽（缝 178→49）',
+    fill: 'srgb:0.949020,0.921569,0.862745,1.00000',
+    layers: [
+      { name: 'V', glass: false,
+        body: vPathD(700, 512, 911).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      ') },
+      { name: '小店', glass: false,
+        body: bagUpright({ w: 300, top: 360, bot: 520, handleW: 150, handleTop: 292, handleStroke: 32, chamfer: 22 }) },
+    ],
+    decor: '',
+  },
+
+  e: {
+    label: 'R 竖边袋 212 宽（全程 ≥72）',
+    fill: 'srgb:0.949020,0.921569,0.862745,1.00000',
+    layers: [
+      { name: 'V', glass: false,
+        body: vPathD(700, 512, 911).map(d => `<path d="${d}" fill="#FF4655"/>`).join('\n      ') },
+      { name: '小店', glass: false,
+        body: bagUpright({ w: 212, top: 344, bot: 512, handleW: 110, handleTop: 280, handleStroke: 30, chamfer: 20 }) },
     ],
     decor: '',
   },
@@ -350,6 +381,9 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
+
+
 
 
 

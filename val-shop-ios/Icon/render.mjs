@@ -21,7 +21,7 @@ const ASSETS = path.join(HERE, '..', 'App', 'Assets.xcassets', 'AppIcon.appicons
 const S = 1024;
 const THEMES = ['light', 'dark', 'tinted'];
 const KINDS = ['flat', 'preview'];
-const CONCEPTS = ['a', 'b', 'c'];
+const CONCEPTS = ['b', 'd', 'e'];
 
 const CHROME_CANDIDATES = [
   process.env.CHROME,
@@ -110,6 +110,7 @@ if (process.argv.includes('--install')) {
 fs.rmSync(profile, { recursive: true, force: true });
 console.log(`\n完成：${KINDS.length * THEMES.length} 张${installed ? `，装进 xcassets ${installed} 张` : ''}`);
 console.log('提示：Chromium 截图可能带 alpha，装库前跑 python Icon/finalize.py 压平成 RGB。');
+
 
 
 

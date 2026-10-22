@@ -33,9 +33,9 @@ THEMES = [
     ("tinted", "着色", "AppIcon-1024-tinted.png"),
 ]
 CONCEPT_LABELS = {
-    "a": "A 斜卡 + V",
-    "b": "B 倒梯形填满负空间",
-    "c": "C 单 V",
+    "b": "P 贴两臂（缝 72 恒定）",
+    "d": "Q 竖边 300 宽（缝 178→49）",
+    "e": "R 竖边 212 宽（全程 ≥72）",
 }
 
 FONTS = [
@@ -200,6 +200,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 
 
