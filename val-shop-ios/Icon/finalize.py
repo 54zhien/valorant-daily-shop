@@ -34,7 +34,7 @@ THEMES = [
 ]
 CONCEPT_LABELS = {
     "a": "A 斜卡 + V",
-    "b": "B 倒梯形 + 顶棚 + 拱门",
+    "b": "B 倒梯形填满负空间",
     "c": "C 单 V",
 }
 
@@ -200,6 +200,8 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
 
 
 
