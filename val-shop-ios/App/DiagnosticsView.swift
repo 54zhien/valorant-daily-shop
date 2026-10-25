@@ -51,7 +51,7 @@ struct DiagnosticsView: View {
             LabeledContent("结果", value: statusText)
             LabeledContent("时间",
                            value: model.lastLoadedAt.map(Self.clock.string(from:)) ?? "还没读过")
-            LabeledContent("接口", value: model.client.shopPath ?? "（未配置）")
+            LabeledContent("接口", value: model.shopPathSummary)
             LabeledContent("刷新于", value: refreshAtText)
             LabeledContent("登录态", value: sessionText)
         }

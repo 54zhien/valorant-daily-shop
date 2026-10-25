@@ -63,6 +63,23 @@ public final class ZhangwaClient {
     public var shopBody: [String: Any]? = [:]
     public var shopMethod: String = "POST"
 
+    /// 实际发请求用的路径。
+    ///
+    /// `shopPath == nil` 只表示「没自定义过」，不表示「不能用」——
+    /// 实测确认的默认接口永远在手上，没道理因为设置页被清空就把它丢掉。
+    ///
+    /// 之前这里没有回落，`fetchStore()` 见到 nil 直接抛 `notConfigured`，
+    /// 于是只要 `BundledConfig.plist` 注入的是空值（CI 没建 `ZW_SHOP_PATH`
+    /// 变量就是这样，本地 xcodegen 也一直是空），装好一登录就必然撞上
+    /// 「还没配置商店接口路径」，商店页整个不可用 —— 而且用户并不知道
+    /// 自己「配置」过什么。默认值是已知正确的，让它兜底。
+    public var effectiveShopPath: String {
+        if let p = shopPath?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
+            return p
+        }
+        return Self.dailyStorePath
+    }
+
     /// 探测用的候选（第一个是实测确认的）
     public var shopCandidates: [String] = [
         ZhangwaClient.dailyStorePath,
@@ -485,12 +502,40 @@ public final class ZhangwaClient {
 
     // MARK: 每日商店
 
-    public func fetchStore() async throws -> Any {
-        guard let path = shopPath, !path.isEmpty else {
-            throw ZhangwaError.notConfigured(
-                "还没配置商店接口路径。抓一次包把路径填进设置，或先跑「探测商店接口」。")
+    /// 读每日商店。
+    ///
+    /// 两步：
+    /// 1. 打 `effectiveShopPath`（自定义的优先，没自定义就是实测默认值）；
+    /// 2. 打回来不对（`data` 是 null / {} / []，或者接口直接报错），就自动探测
+    ///    一遍候选路径，**唯一命中**时把它存下来并重打一次。没命中就把原始
+    ///    结果/原始错误原样交出去 —— 别把真正的原因盖掉。
+    ///
+    /// 为什么要自愈：接口路径是服务端的事，早晚会变。真到那天，用户手上那个
+    /// 版本不会自己变，但他下拉刷新一次，App 自己去把新路径找出来，不用回电脑抓包。
+    ///
+    /// 票据异常（999999）**不**触发探测：那是登录态过期，拿一张废票去扫十几个
+    /// 候选只会让日志更难读，而解法只有一个（重新登录 / 刷新票据）。
+    public func fetchStore(autoProbe: Bool = true) async throws -> Any {
+        do {
+            let raw = try await request(effectiveShopPath,
+                                        body: shopBody ?? [:], method: shopMethod)
+            guard autoProbe, !Self.hasPayload(raw) else { return raw }
+            if let healed = try await healShopPath() { return healed }
+            return raw          // 空壳照样交上去，让界面说「没解析出商品」
+        } catch let error as ZhangwaError {
+            guard autoProbe, error.apiCode != Self.resultTicketInvalid else { throw error }
+            if let healed = try await healShopPath() { return healed }
+            throw error
         }
-        return try await request(path, body: shopBody ?? [:], method: shopMethod)
+    }
+
+    /// 探测候选路径；只有**唯一命中**才动 `shopPath`（多个命中说明候选里
+    /// 有长得像的，交给用户挑，别替他猜）。没命中返回 nil。
+    private func healShopPath() async throws -> Any? {
+        let hits = await probeShop().filter { $0.ok }
+        guard hits.count == 1, let only = hits.first else { return nil }
+        shopPath = only.path
+        return try await request(only.path, body: shopBody ?? [:], method: shopMethod)
     }
 
     /// 每个候选路径 × 每台域名，POST/GET 都试一遍。

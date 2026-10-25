@@ -200,18 +200,72 @@ struct ZhangwaKitTests {
         }
     }
 
-    @Test("没配商店路径时给出可读提示")
-    func shopNotConfigured() async {
+    @Test("没配自定义路径时回落到实测默认接口，不再把人卡在「还没配置」")
+    func emptyShopPathFallsBackToDefault() async throws {
         let c = ZhangwaClient(session: qqSession())
-        c.shopPath = nil          // 现在默认指向每日商店，要显式清掉来测这个分支
+        // 设置页被清空 / BundledConfig.plist 注入空值，就是 `shopPath = nil`。
+        // 这只表示「没自定义」，不代表「不能用」——默认接口是实测确认过的。
+        c.shopPath = nil
+        c.probeHosts = [ZhangwaClient.hostProd]
+
+        var paths: [String] = []
+        c.transportOverride = { [self] req in
+            paths.append(req.url?.path ?? "?")
+            return json(#"{"result":0,"msg":"","data":[{"key":"dailystore","title":"每日商店","list":[{"goods_name":"银月 幻影","rmb_price":"1775","quality":"orange"}]}]}"#)
+        }
+
+        let raw = try await c.fetchStore()
+        #expect(paths.first == ZhangwaClient.dailyStorePath)
+        #expect(c.effectiveShopPath == ZhangwaClient.dailyStorePath)
+        let snap = StoreNormalizer.normalize(raw)
+        #expect(snap.items.first?.name == "银月 幻影")
+    }
+
+    @Test("空壳响应触发自动探测：唯一命中就写回并重打")
+    func fetchStoreHealsEmptyStorefront() async throws {
+        let c = ZhangwaClient(session: qqSession())
+        c.shopPath = "/go/mlol_store/agame/old_store"     // 假装服务端把接口改名了
+        c.probeHosts = [ZhangwaClient.hostProd]
+        c.shopCandidates = ["/go/mlol_store/agame/user_store"]
+
+        c.transportOverride = { [self] req in
+            switch req.url?.path {
+            case "/go/mlol_store/agame/user_store":
+                return json(#"{"result":0,"msg":"","data":[{"key":"dailystore","title":"每日商店","list":[{"goods_name":"银月 幻影","rmb_price":"1775","quality":"orange"}]}]}"#)
+            default:
+                // 老路径还在，但只是一个空壳：result=0 + data:null
+                return json(#"{"result":0,"msg":"","data":null}"#)
+            }
+        }
+
+        let raw = try await c.fetchStore()
+        #expect(c.shopPath == "/go/mlol_store/agame/user_store")
+        #expect(StoreNormalizer.normalize(raw).items.first?.name == "银月 幻影")
+    }
+
+    @Test("票据异常不触发探测：别拿废票去扫一遍候选")
+    func fetchStoreDoesNotProbeOnTicketError() async {
+        let c = ZhangwaClient(session: qqSession())
+        c.shopPath = "/go/mlol_store/agame/user_store"
+        c.probeHosts = [ZhangwaClient.hostProd]
+        c.shopCandidates = ["/go/mlol_store/agame/other_store"]
+
+        var paths: [String] = []
+        c.transportOverride = { [self] req in
+            paths.append(req.url?.path ?? "?")
+            return json(#"{"result":999999,"msg":"票据异常","data":null}"#)
+        }
+
         do {
             _ = try await c.fetchStore()
-            Issue.record("应当抛 ZhangwaError")
+            Issue.record("999999 应当抛错")
         } catch let e as ZhangwaError {
-            #expect(e.errorDescription?.contains("商店") == true)
+            #expect(e.apiCode == 999999)
         } catch {
             Issue.record("错误类型不对：\(error)")
         }
+        #expect(!paths.contains("/go/mlol_store/agame/other_store"),
+                "票据异常该直接报出来，不该去扫候选路径")
     }
 
     // MARK: 真实数据（2026-10 抓包）

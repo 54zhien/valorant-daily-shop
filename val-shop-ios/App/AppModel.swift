@@ -342,8 +342,18 @@ final class AppModel {
         return "\(session.authType.displayName) · \(id)"
     }
 
+    /// 诊断台显示用：实际生效的接口路径，以及它是哪来的。
+    ///
+    /// 别再用 `client.shopPath ?? "（未配置）"` —— `shopPath` 为 nil 只表示
+    /// 「没自定义」，实际打的是默认接口，显示「未配置」会让人以为商店读不了。
+    var shopPathSummary: String {
+        let custom = client.shopPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return custom.isEmpty ? "\(client.effectiveShopPath)（默认）" : "\(custom)（自定义）"
+    }
+
     var shopPathLabel: String {
-        (client.shopPath?.isEmpty == false) ? "接口已配置" : "接口未配置"
+        let custom = client.shopPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return custom.isEmpty ? "默认接口" : "自定义接口"
     }
 
     func saveCookie(_ raw: String) {
@@ -569,6 +579,7 @@ final class AppModel {
 
     func saveShopPath(_ path: String, body: String) {
         let p = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 空 = 不自定义，回落到实测默认接口（不是「不能用」）。
         client.shopPath = p.isEmpty ? nil : p
         UserDefaults.standard.set(p, forKey: Self.kShopPath)
         shopPathDraft = p
@@ -578,7 +589,9 @@ final class AppModel {
         client.shopBody = Self.parseJSONObject(b)
         shopBodyDraft = b
 
-        push("商店接口已保存：\(p.isEmpty ? "(空)" : p)")
+        push(p.isEmpty
+             ? "商店接口：已清空自定义，用默认 \(ZhangwaClient.dailyStorePath)"
+             : "商店接口已保存：\(p)")
     }
 
     func setShopPath(fromEndpoint url: String) {
