@@ -173,6 +173,32 @@ function bagWithTail({ cx = 512, top, bot, w, chamfer, apexY, handleW, handleTop
       <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
 }
 
+// 两侧**平行于两臂内侧**的袋子：垂距 gap 恒定，所以从袋口到尾巴尖间距一点不变。
+// 代价是袋子必须跟着两臂一起收窄（楔形），换来的是能一路宽到贴着 V。
+function bagParallel({ gap, top, handleW, handleTop, handleStroke, chamfer }) {
+  const slopeL = Math.abs((LX1 - LX0) / (LY1 - LY0));
+  const slopeR = Math.abs((RX1 - RX0) / (RY1 - RY0));
+  const shiftL = gap / Math.cos(Math.atan(slopeL));
+  const shiftR = gap / Math.cos(Math.atan(slopeR));
+  const [tl, tr] = valley(top);
+  const xTL = tl + shiftL, xTR = tr - shiftR;
+  // 两条偏移线的交点 = 尾巴尖
+  const t = (688.3 - shiftL - shiftR) / (slopeL + slopeR);
+  const apexY = 340 + t;
+  const apexX = LX0 + slopeL * t + shiftL;
+  const c = chamfer;
+  const body = `M ${(xTL + c).toFixed(2)} ${top} L ${(xTR - c).toFixed(2)} ${top}`
+    + ` L ${xTR.toFixed(2)} ${top + c} L ${apexX.toFixed(2)} ${apexY.toFixed(2)}`
+    + ` L ${xTL.toFixed(2)} ${top + c} Z`;
+  const cx = (xTL + xTR) / 2, hw = handleW / 2;
+  const handle = `M ${(cx - hw).toFixed(2)} ${top} L ${(cx - hw).toFixed(2)} ${handleTop + c}`
+    + ` L ${(cx - hw + c).toFixed(2)} ${handleTop} L ${(cx + hw - c).toFixed(2)} ${handleTop}`
+    + ` L ${(cx + hw).toFixed(2)} ${handleTop + c} L ${(cx + hw).toFixed(2)} ${top}`;
+  const sharp = 'stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"';
+  return `<path d="${body}" fill="#FF4655"/>
+      <path d="${handle}" fill="none" stroke="#FF4655" stroke-width="${handleStroke}" ${sharp}/>`;
+}
+
 const CONCEPTS = {
   a: {
     label: 'A 斜卡 + V',
@@ -200,7 +226,7 @@ const CONCEPTS = {
   },
 
   b: {
-    label: 'B 购物袋（左右快贴两臂）+ 倒三角尾巴',
+    label: 'B 购物袋（两侧平行两臂、垂距 72 恒定）',
     fill: 'srgb:0.949020,0.921569,0.862745,1.00000',   // #F2EBDC 米色
     layers: [
       {
@@ -211,7 +237,7 @@ const CONCEPTS = {
         // 山谷下半段用倒梯形填掉：净空 0（贴着两臂，连成一体），
         // 顶上往上做一条雨棚，下沿开一个拱门。
         name: '小店', glass: false,
-        body: bagWithTail({ cx: 508, w: 500, top: 240, bot: 430, chamfer: 24, apexY: 666, handleW: 210, handleTop: 176, handleStroke: 32 }),
+        body: bagParallel({ gap: 72, top: 240, handleW: 210, handleTop: 176, handleStroke: 32, chamfer: 24 }),
       },
     ],
     decor: '',
@@ -397,6 +423,7 @@ for (const [id, c] of Object.entries(CONCEPTS)) {
 console.log(`\n主方案 ${PRIMARY}（${primary.label}）：${primary.layers.length} 层，`
   + `其中玻璃层 ${primary.layers.filter(l => l.glass).length}`);
 console.log(`换方案：CONCEPT=b node Icon/gen.mjs`);
+
 
 
 
