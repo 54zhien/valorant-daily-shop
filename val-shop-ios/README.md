@@ -134,21 +134,30 @@ zip -qry ValPeek-unsigned.ipa Payload                                # Payload/ 
 |---|---|
 | **证书有效期** | 免费 Apple ID 签的 App **7 天**就掉签，要重签。付费开发者账号（$99/年）签的是 **1 年** |
 | **Bundle ID** | 默认 `com.imzhien.ValPeek`（`.github/workflows/ios.yml` 的 `BUNDLE_ID` 与 `project.yml` 两处一致）。要换就在仓库 **Variables** 里建 `BUNDLE_ID`，CI 会自动覆盖 |
-| **重装会清数据** | 自签重装如果 Bundle ID 变了，容器会被清空 —— 登录态要重新导入。所以下面那个 `ZW_SHOP_PATH` 变量能省不少事 |
+| **重装会清数据** | 自签重装如果 Bundle ID 变了，容器会被清空 —— 登录态要重新导入（接口路径不用重配：内置默认，或让 App 自己探测） |
 | **UDID** | 免费/个人证书要设备 UDID 在描述文件里，重装后 UDID 一般不变，不用管 |
 
-### 省掉在手机上手输路径
+### 接口路径不用填
 
-商店接口路径长这样：`/go/agame/xxx/yyy`，在 iPhone 上敲很痛苦。到
-**Settings → Secrets and variables → Actions → Variables** 建两个变量：
+默认接口已经内置（`ZhangwaClient.dailyStorePath` = `POST /go/mlol_store/agame/user_store`），
+**什么变量都不建也能用** —— 装上、登录、下拉刷新就是今天的商店。
+
+想覆盖它（比如哪天掌瓦把接口改了），三个办法效果一样：
+
+| 办法 | 怎么做 | 适合 |
+|---|---|---|
+| 让它自己找 | 诊断台 →「探测候选路径」，唯一命中会自动写回 | 最省事，手机上就能做 |
+| 构建期注入 | 仓库 **Variables** 建 `ZW_SHOP_PATH`，见下表 | 一次配好，以后每个包都带着 |
+| 从抓包里挑 | 诊断台 →「接口清单」→「设为商店接口」 | 排障时 |
 
 | 变量 | 值 | 作用 |
 |---|---|---|
-| `ZW_SHOP_PATH` | `/go/...` | 构建时写进 `App/BundledConfig.plist`，装上就有 |
+| `ZW_SHOP_PATH` | `/go/...` | 构建时写进 `App/BundledConfig.plist`（**留空 = 用内置默认**） |
 | `ZW_SHOP_BODY` | `{}`（一般不用建） | 附加 JSON body |
 | `BUNDLE_ID` | 你的证书对应的 ID | 覆盖默认 bundle id |
 
-优先级的实现是：**App 里改过的 > 构建期注入的**，所以你在 App 里手动改过之后，重装新版本不会被覆盖掉。
+优先级：**App 里改过的 > 构建期注入的 > 内置默认**。所以你在 App 里手动改过之后，
+重装新版本不会被覆盖掉；把 App 里的值清空也不会让商店读不出来 —— 会回落到内置默认。
 
 > 注意 `ZW_SHOP_PATH` 是 **Variable 不是 Secret** —— 接口路径不是凭据。
 > **Cookie / ct / token 一律不要进仓库**，全部在手机上导入。
@@ -157,7 +166,9 @@ zip -qry ValPeek-unsigned.ipa Payload                                # Payload/ 
 
 ## 二、拿到登录态（唯一绕不开的一步）
 
-商店页面的接口路径**不在 APK 里**（页面是服务端下发的 RN bundle 渲染的），所以必须抓一次包。
+登录态（`ct` + Cookie）**只能靠抓一次包拿到**，这一步绕不开。
+
+商店接口路径不用抓了：已经内置（见上一节），而且它失效时 App 会自己去探测候选。
 
 任意一台电脑跑 Android 模拟器（MuMu / 雷电默认带 root）：
 
@@ -211,7 +222,7 @@ Info.plist 里开了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace
 |---|---|
 | 没登录 | 还没登录 —— 登录一下就能看今天的商店 |
 | 登录快过期 / 不能自刷新 | 登录状态快到期了，建议到「我的」重新扫一下码 |
-| 读取失败 | 没读到商店：<原因>。点下面按钮再试一次 |
+| 读取失败 | 没读到商店：<原因>。下拉刷新再试一次 |
 
 读到数据但解析不出商品时：诊断台点「导出诊断信息」，把文本发我 —— 里面有 `rawKeys`
 （原始字段名）和完整 JSON，直接照着改 `StoreNormalizer` 的候选键就行。
